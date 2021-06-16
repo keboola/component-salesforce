@@ -1,1 +1,57 @@
-{}
+{
+  "title": "Operation Configuration",
+  "type": "object",
+  "required": [
+    "operation",
+    "serial_mode"
+  ],
+  "properties": {
+    "operation": {
+      "title": "Operation",
+      "type": "string",
+      "enum": [
+        "Insert",
+        "Update",
+        "Upsert",
+        "Delete"
+      ],
+      "default": "Object",
+      "propertyOrder": 1
+    },
+    "serial_mode": {
+      "title": "Serial mode",
+      "format": "checkbox",
+      "propertyOrder": 2,
+      "default" : true
+    },
+    "replace_string": {
+      "title": "Replace string",
+      "type": "string",
+      "description": "String to be replaced for dot in column name",
+      "propertyOrder": 3
+    },
+    "upsert_field_name": {
+      "title": "Upsert field name",
+      "type": "string",
+      "description": "Name of the file where external IDs are stored for upsert operation",
+      "options": {
+        "dependencies": {
+          "operation": "Upsert"
+        }
+      },
+      "propertyOrder": 4
+    },
+    "assignment_id": {
+      "title": "Assignment Id",
+      "type": "string",
+      "description": "ID of Lead Assignment rule you want to run after import",
+      "propertyOrder": 5
+    },
+    "output_errors": {
+      "title": "Output errors",
+      "format": "checkbox",
+      "propertyOrder": 6,
+      "default" : true
+    }
+  }
+}
