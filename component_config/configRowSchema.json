@@ -21,6 +21,7 @@
     "serial_mode": {
       "title": "Serial mode",
       "format": "checkbox",
+      "type": "boolean",
       "propertyOrder": 2,
       "default" : true
     },
@@ -50,6 +51,7 @@
     "output_errors": {
       "title": "Output errors",
       "format": "checkbox",
+      "type": "boolean",
       "propertyOrder": 6,
       "default" : true
     }
