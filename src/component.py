@@ -180,6 +180,7 @@ class Component(ComponentBase):
                         error_row = row
                         error_row["error"] = parsed_results[i]["error"]
                         writer.writerow(error_row)
+        self.write_tabledef_manifest(unsuccessful_table)
 
 
 """
