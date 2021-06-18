@@ -24,7 +24,7 @@ KEY_UPSERT_FIELD_NAME = "upsert_field_name"
 KEY_SERIAL_MODE = "serial_mode"
 KEY_OUTPUT_ERRORS = "output_errors"
 
-REQUIRED_PARAMETERS = [KEY_USERNAME, KEY_PASSWORD, KEY_SECURITY_TOKEN, KEY_OPERATION]
+REQUIRED_PARAMETERS = [KEY_USERNAME, KEY_OBJECT, KEY_PASSWORD, KEY_SECURITY_TOKEN, KEY_OPERATION]
 REQUIRED_IMAGE_PARS = []
 
 BATCH_LIMIT = 8000
@@ -49,9 +49,7 @@ class Component(ComponentBase):
         except SalesforceAuthenticationFailed:
             raise UserException("Authentication Failed : recheck your username, password, and security token ")
 
-        sf_object = params.get(KEY_OBJECT, None)
-        if not sf_object:
-            sf_object = input_table.name.replace(".csv", '')
+        sf_object = params.get(KEY_OBJECT)
 
         operation = params.get(KEY_OPERATION).lower()
         upsert_field_name = params.get(KEY_UPSERT_FIELD_NAME)
