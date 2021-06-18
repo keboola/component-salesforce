@@ -16,7 +16,7 @@ KEY_PASSWORD = "#password"
 KEY_SECURITY_TOKEN = "#security_token"
 KEY_SANDBOX = "sandbox"
 
-KEY_OBJECT = "object"
+KEY_OBJECT = "sf_object"
 KEY_REPLACE_STRING = "replace_string"
 KEY_OPERATION = "operation"
 KEY_ASSIGNMENT_ID = "assignment_id"

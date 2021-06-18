@@ -3,9 +3,16 @@
   "type": "object",
   "required": [
     "operation",
-    "serial_mode"
+    "serial_mode",
+    "sf_object"
   ],
   "properties": {
+    "sf_object": {
+      "title": "Object",
+      "type": "string",
+      "propertyOrder": 1,
+      "description": "Salesforce object eg. Contact"
+    },
     "operation": {
       "title": "Operation",
       "type": "string",
@@ -16,20 +23,20 @@
         "Delete"
       ],
       "default": "Object",
-      "propertyOrder": 1
+      "propertyOrder": 2
     },
     "serial_mode": {
       "title": "Serial mode",
       "format": "checkbox",
       "type": "boolean",
-      "propertyOrder": 2,
+      "propertyOrder": 3,
       "default" : true
     },
     "replace_string": {
       "title": "Replace string",
       "type": "string",
       "description": "String to be replaced for dot in column name",
-      "propertyOrder": 3
+      "propertyOrder": 4
     },
     "upsert_field_name": {
       "title": "Upsert field name",
@@ -40,19 +47,19 @@
           "operation": "Upsert"
         }
       },
-      "propertyOrder": 4
+      "propertyOrder": 5
     },
     "assignment_id": {
       "title": "Assignment Id",
       "type": "string",
       "description": "ID of Lead Assignment rule you want to run after import",
-      "propertyOrder": 5
+      "propertyOrder": 6
     },
     "output_errors": {
       "title": "Output errors",
       "format": "checkbox",
       "type": "boolean",
-      "propertyOrder": 6,
+      "propertyOrder": 7,
       "default" : true
     }
   }
