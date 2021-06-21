@@ -52,8 +52,8 @@ class Component(ComponentBase):
         sf_object = params.get(KEY_OBJECT)
 
         operation = params.get(KEY_OPERATION).lower()
-        upsert_field_name = params.get(KEY_UPSERT_FIELD_NAME)
-        assignement_id = params.get(KEY_ASSIGNMENT_ID)
+        upsert_field_name = params.get(KEY_UPSERT_FIELD_NAME, None)
+        assignement_id = params.get(KEY_ASSIGNMENT_ID, None)
 
         logging.info(f"Running {operation} operation with input table to the {sf_object} Salesforce object")
 
@@ -66,6 +66,8 @@ class Component(ComponentBase):
         input_headers = self.get_input_table_headers(input_table.full_path)
         if replace_string:
             input_headers = self.replace_headers(input_headers, replace_string)
+        if upsert_field_name and upsert_field_name not in input_headers:
+            raise UserException(f"Upsert field name {upsert_field_name} not in input table")
 
         input_file_reader = self.get_input_file_reader(input_table, input_headers)
 
@@ -73,7 +75,7 @@ class Component(ComponentBase):
             raise UserException("Delete operation should only have one column with id, input table contains "
                                 "{input_headers.len()} columns")
 
-        results = self.write_to_salesforce(input_file_reader, upsert_field_name, salesforce_client,
+        results = self.write_to_salesforce(input_file_reader, upsert_field_name.strip(), salesforce_client,
                                            sf_object, operation, concurrency, assignement_id)
         parsed_results, num_success, num_errors = self.parse_results(results)
 
@@ -149,17 +151,14 @@ class Component(ComponentBase):
                 num_success = num_success + 1
         return parsed_results, num_success, num_errors
 
-    def write_to_salesforce(self, input_file_reader, upsert_field_name, salesforce_client, sf_object, operation,
-                            concurrency, assignement_id):
+    def write_to_salesforce(self, input_file_reader, upsert_field_name, salesforce_client,
+                            sf_object, operation, concurrency, assignement_id):
         results = []
         for i, chunk in enumerate(self.get_chunks(input_file_reader, BATCH_LIMIT)):
-            if upsert_field_name:
-                job = salesforce_client.create_job(sf_object, operation, external_id_name=upsert_field_name,
-                                                   contentType='CSV', concurrency=concurrency,
-                                                   assignement_id=assignement_id)
-            else:
-                job = salesforce_client.create_job(sf_object, operation, contentType='CSV', concurrency=concurrency,
-                                                   assignement_id=assignement_id)
+            job = salesforce_client.create_job(sf_object, operation, external_id_name=upsert_field_name,
+                                               contentType='CSV', concurrency=concurrency,
+                                               assignement_id=assignement_id)
+
             csv_iter = CsvDictsAdapter(iter(chunk))
             job_result = self.get_job_result(salesforce_client, job, csv_iter)
             results.extend(job_result)
