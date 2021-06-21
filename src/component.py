@@ -63,7 +63,7 @@ class Component(ComponentBase):
             concurrency = 'Parallel'
 
         replace_string = params.get(KEY_REPLACE_STRING)
-        input_headers = self.get_input_table_headers(input_table.full_path)
+        input_headers = self.get_input_table().columns
         if replace_string:
             input_headers = self.replace_headers(input_headers, replace_string)
         if upsert_field_name and upsert_field_name not in input_headers:
@@ -98,12 +98,6 @@ class Component(ComponentBase):
         elif len(input_tables) > 1:
             raise UserException("Too many input tables added. Please add only one input table")
         return input_tables[0]
-
-    @staticmethod
-    def get_input_table_headers(table_path):
-        with open(table_path, 'r') as f:
-            d_reader = csv.DictReader(f)
-            return d_reader.fieldnames
 
     @staticmethod
     def replace_headers(input_headers, replace_string):
