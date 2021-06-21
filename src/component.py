@@ -67,7 +67,8 @@ class Component(ComponentBase):
         if replace_string:
             input_headers = self.replace_headers(input_headers, replace_string)
         if upsert_field_name and upsert_field_name not in input_headers:
-            raise UserException(f"Upsert field name {upsert_field_name} not in input table")
+            raise UserException(
+                f"Upsert field name {upsert_field_name} not in input table with headers {input_headers}")
 
         input_file_reader = self.get_input_file_reader(input_table, input_headers)
 
