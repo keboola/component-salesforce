@@ -6,7 +6,7 @@ from retry import retry
 import logging
 import csv
 from simple_salesforce.exceptions import SalesforceAuthenticationFailed
-from salesforce_bulk import CsvDictsAdapter
+from salesforce_bulk import CsvDictsAdapter, BulkApiError
 
 from keboola.component.base import ComponentBase, UserException
 from salesforce.client import SalesforceClient
@@ -41,7 +41,6 @@ class Component(ComponentBase):
         '''
 
         params = self.configuration.parameters
-
         input_table = self.get_input_table()
 
         try:
@@ -50,10 +49,15 @@ class Component(ComponentBase):
             raise UserException("Authentication Failed : recheck your username, password, and security token ")
 
         sf_object = params.get(KEY_OBJECT)
-
         operation = params.get(KEY_OPERATION).lower()
-        upsert_field_name = params.get(KEY_UPSERT_FIELD_NAME, None)
-        assignement_id = params.get(KEY_ASSIGNMENT_ID, None)
+
+        upsert_field_name = params.get(KEY_UPSERT_FIELD_NAME)
+        if upsert_field_name:
+            upsert_field_name = upsert_field_name.strip()
+
+        assignement_id = params.get(KEY_ASSIGNMENT_ID)
+        if assignement_id:
+            assignement_id = assignement_id.strip()
 
         logging.info(f"Running {operation} operation with input table to the {sf_object} Salesforce object")
 
@@ -66,7 +70,7 @@ class Component(ComponentBase):
         input_headers = self.get_input_table().columns
         if replace_string:
             input_headers = self.replace_headers(input_headers, replace_string)
-        if upsert_field_name and upsert_field_name not in input_headers:
+        if upsert_field_name and upsert_field_name.strip() not in input_headers:
             raise UserException(
                 f"Upsert field name {upsert_field_name} not in input table with headers {input_headers}")
 
@@ -76,8 +80,12 @@ class Component(ComponentBase):
             raise UserException("Delete operation should only have one column with id, input table contains "
                                 "{input_headers.len()} columns")
 
-        results = self.write_to_salesforce(input_file_reader, upsert_field_name.strip(), salesforce_client,
-                                           sf_object, operation, concurrency, assignement_id)
+        try:
+            results = self.write_to_salesforce(input_file_reader, upsert_field_name, salesforce_client,
+                                               sf_object, operation, concurrency, assignement_id)
+        except BulkApiError as bulk_error:
+            raise UserException(bulk_error) from bulk_error
+
         parsed_results, num_success, num_errors = self.parse_results(results)
 
         logging.info(
