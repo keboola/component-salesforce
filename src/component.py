@@ -76,9 +76,9 @@ class Component(ComponentBase):
 
         input_file_reader = self.get_input_file_reader(input_table, input_headers)
 
-        if operation == "delete" and input_headers.len() != 1:
+        if operation == "delete" and len(input_headers) != 1:
             raise UserException("Delete operation should only have one column with id, input table contains "
-                                "{input_headers.len()} columns")
+                                f"{len(input_headers)} columns")
 
         try:
             results = self.write_to_salesforce(input_file_reader, upsert_field_name, salesforce_client,
