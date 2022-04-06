@@ -8,7 +8,8 @@ import csv
 from simple_salesforce.exceptions import SalesforceAuthenticationFailed
 from salesforce_bulk import CsvDictsAdapter, BulkApiError
 
-from keboola.component.base import ComponentBase, UserException
+from keboola.component.base import ComponentBase
+from keboola.component.exceptions import UserException
 from salesforce.client import SalesforceClient
 
 KEY_USERNAME = "username"
@@ -27,7 +28,7 @@ KEY_OUTPUT_ERRORS = "output_errors"
 REQUIRED_PARAMETERS = [KEY_USERNAME, KEY_OBJECT, KEY_PASSWORD, KEY_SECURITY_TOKEN, KEY_OPERATION]
 REQUIRED_IMAGE_PARS = []
 
-BATCH_LIMIT = 8000
+BATCH_LIMIT = 1000
 
 
 class Component(ComponentBase):
