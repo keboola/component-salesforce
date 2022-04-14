@@ -10,7 +10,7 @@
     "sf_object": {
       "title": "Object",
       "type": "string",
-      "propertyOrder": 1,
+      "propertyOrder": 10,
       "description": "Salesforce object eg. Contact"
     },
     "operation": {
@@ -23,20 +23,20 @@
         "Delete"
       ],
       "default": "Object",
-      "propertyOrder": 2
+      "propertyOrder": 20
     },
     "serial_mode": {
       "title": "Serial mode",
       "format": "checkbox",
       "type": "boolean",
-      "propertyOrder": 3,
+      "propertyOrder": 30,
       "default" : true
     },
     "replace_string": {
       "title": "Replace string",
       "type": "string",
       "description": "String to be replaced for dot in column name",
-      "propertyOrder": 4
+      "propertyOrder": 40
     },
     "upsert_field_name": {
       "title": "Upsert field name",
@@ -47,19 +47,27 @@
           "operation": "Upsert"
         }
       },
-      "propertyOrder": 5
+      "propertyOrder": 50
     },
     "assignment_id": {
       "title": "Assignment Id",
       "type": "string",
       "description": "ID of Lead Assignment rule you want to run after import",
-      "propertyOrder": 6
+      "propertyOrder": 60
     },
     "output_errors": {
       "title": "Output errors",
       "format": "checkbox",
       "type": "boolean",
-      "propertyOrder": 7,
+      "propertyOrder": 70,
+      "default" : true
+    },
+    "fail_on_error": {
+      "title": "Fail on error",
+      "format": "checkbox",
+      "description" : "When checked, the component job will fail if any error occurs. If unchecked, the component will be successful if some errors occur.",
+      "type": "boolean",
+      "propertyOrder": 80,
       "default" : true
     }
   }

@@ -4,11 +4,14 @@ The component takes files from in/tables directory and insert/upsert/update/dele
 The input table must have a header with field names, which has to exists in Salesforce. 
 ID column is used to identify record which will be updated. When inserting records all required fields has to be filled in.
 
-The process can fail on any records (due to missing required field or too large string) and this specific record will not be inserted/update. 
+The process can fail on any records (due to missing required field or too large string) and this specific record will not be inserted/updated/upserted/deleted. 
 You can specify whether you want the writer to output the errors to a table.
 Everything else will finish with success. There is no way how to rollback this transaction, 
 so you have to carefully check the log each time. It is also great idea to include a 
 column with external IDs and based on them do upsert later. External IDs will also save you from duplicated records when running insert several times.
+
+If you need you can set the fail on error parameter true, this will cause the job of a component to fail if 1 or more
+records fail to be inserted/updated/upserted/deleted. It is however it is recommended to have a pipeline set up to processes unsuccessful updates and not have the component fail.
 **Table of contents:**  
   
 [TOC]
@@ -23,12 +26,13 @@ column with external IDs and based on them do upsert later. External IDs will al
 - **sandbox** - (REQ) true when you want to export data from sandbox
 
 ## Row configuration
-* Object - (REQ) name of object you wish to perform the operation on 
+* object - (REQ) name of object you wish to perform the operation on 
 * upsertField - required when the operation is upsert
 * operation - (REQ) specify the operation you wish to do. Insert/Upsert/Update/Delete are supported. 
 * serialMode - true if you wish to run the import in serial mode. 
 * replaceString - string to be replaced in column name for dot, so you can use that column as reference to other record via external id
 * output_errors - if you wish to output errors that occurred into an output table
+* fail_on_error - if you want the job to fail on any errors, set this to true and the job will fail if more than 0 errors occur in updating/deleting/inserting/upserting
 
 - when inserting you cannot specify ID field
 - when upserting the upsertField parameter is required

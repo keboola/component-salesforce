@@ -20,11 +20,13 @@ KEY_ASSIGNMENT_ID = "assignment_id"
 KEY_UPSERT_FIELD_NAME = "upsert_field_name"
 KEY_SERIAL_MODE = "serial_mode"
 KEY_OUTPUT_ERRORS = "output_errors"
+KEY_FAIL_ON_ERROR = "fail_on_error"
 
 REQUIRED_PARAMETERS = [KEY_USERNAME, KEY_OBJECT, KEY_PASSWORD, KEY_SECURITY_TOKEN, KEY_OPERATION]
 REQUIRED_IMAGE_PARS = []
 
 BATCH_LIMIT = 2500
+LOG_LIMIT = 15
 
 
 class Component(ComponentBase):
@@ -84,7 +86,12 @@ class Component(ComponentBase):
         logging.info(
             f"All data written to salesforce, {operation}ed {num_success} records, {num_errors} errors occurred")
 
-        self.write_unsuccessful(parsed_results, input_table, input_headers, sf_object, operation)
+        if params.get(KEY_FAIL_ON_ERROR):
+            self.log_errors(parsed_results, input_table, input_headers)
+            raise UserException(
+                f"{num_errors} errors occurred, since fail on error has been selected, the job has failed.")
+        else:
+            self.write_unsuccessful(parsed_results, input_table, input_headers, sf_object, operation)
 
     @retry(SalesforceAuthenticationFailed, tries=3, delay=5)
     def login_to_salesforce(self, params):
@@ -110,8 +117,6 @@ class Component(ComponentBase):
     def get_input_file_reader(input_table, input_headers):
         with open(input_table.full_path, mode='r') as in_file:
             reader = csv.DictReader(in_file, fieldnames=input_headers)
-            #  skip first row headers as input header has been specified
-            next(reader)
             for input_row in reader:
                 yield input_row
 
@@ -178,13 +183,28 @@ class Component(ComponentBase):
         with open(unsuccessful_table.full_path, 'w+', newline='') as out_table:
             writer = csv.DictWriter(out_table, fieldnames=fieldnames, lineterminator='\n', delimiter=',')
             with open(input_table.full_path, 'r') as input_table:
-                reader = csv.DictReader(input_table)
+                reader = csv.DictReader(input_table, input_headers)
                 for i, row in enumerate(reader):
                     if parsed_results[i]["success"] == "false":
                         error_row = row
                         error_row["error"] = parsed_results[i]["error"]
                         writer.writerow(error_row)
         self.write_manifest(unsuccessful_table)
+
+    @staticmethod
+    def log_errors(parsed_results, input_table, input_headers):
+        logging.warning(f"Logging first {LOG_LIMIT} errors")
+        fieldnames = input_headers
+        fieldnames.append("error")
+        with open(input_table.full_path, 'r') as input_table:
+            reader = csv.DictReader(input_table, fieldnames=fieldnames)
+            for i, row in enumerate(reader):
+                if parsed_results[i]["success"] == "false":
+                    error_row = row
+                    error_row["error"] = parsed_results[i]["error"]
+                    logging.warning(f"Failed to update row : {error_row}")
+                if i >= LOG_LIMIT - 1:
+                    break
 
 
 if __name__ == "__main__":
