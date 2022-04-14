@@ -1,7 +1,3 @@
-'''
-Template Component main class.
-
-'''
 from retry import retry
 import logging
 import csv
@@ -28,7 +24,7 @@ KEY_OUTPUT_ERRORS = "output_errors"
 REQUIRED_PARAMETERS = [KEY_USERNAME, KEY_OBJECT, KEY_PASSWORD, KEY_SECURITY_TOKEN, KEY_OPERATION]
 REQUIRED_IMAGE_PARS = []
 
-BATCH_LIMIT = 1000
+BATCH_LIMIT = 2500
 
 
 class Component(ComponentBase):
@@ -37,10 +33,6 @@ class Component(ComponentBase):
                          required_image_parameters=REQUIRED_IMAGE_PARS)
 
     def run(self):
-        '''
-        Main execution code
-        '''
-
         params = self.configuration.parameters
         input_table = self.get_input_table()
 
@@ -135,7 +127,8 @@ class Component(ComponentBase):
         if chunk:
             yield chunk
 
-    def get_job_result(self, salesforce_client, job, csv_iter):
+    @staticmethod
+    def get_job_result(salesforce_client, job, csv_iter):
         batch = salesforce_client.post_batch(job, csv_iter)
         salesforce_client.wait_for_batch(job, batch)
         salesforce_client.close_job(job)
@@ -159,14 +152,22 @@ class Component(ComponentBase):
                             sf_object, operation, concurrency, assignement_id):
         results = []
         for i, chunk in enumerate(self.get_chunks(input_file_reader, BATCH_LIMIT)):
-            job = salesforce_client.create_job(sf_object, operation, external_id_name=upsert_field_name,
-                                               contentType='CSV', concurrency=concurrency,
-                                               assignement_id=assignement_id)
-
-            csv_iter = CsvDictsAdapter(iter(chunk))
-            job_result = self.get_job_result(salesforce_client, job, csv_iter)
+            logging.info(f"Processing chunk #{i}")
+            job_result = self.process_job(upsert_field_name, salesforce_client, sf_object, operation, concurrency,
+                                          assignement_id, chunk)
             results.extend(job_result)
         return results
+
+    @retry(delay=10, tries=4, backoff=2, exceptions=BulkApiError)
+    def process_job(self, upsert_field_name, salesforce_client, sf_object, operation, concurrency, assignement_id,
+                    chunk):
+
+        job = salesforce_client.create_job(sf_object, operation, external_id_name=upsert_field_name,
+                                           contentType='CSV', concurrency=concurrency,
+                                           assignement_id=assignement_id)
+
+        csv_iter = CsvDictsAdapter(iter(chunk))
+        return self.get_job_result(salesforce_client, job, csv_iter)
 
     def write_unsuccessful(self, parsed_results, input_table, input_headers, sf_object, operation):
         unsuccessful_table_name = "".join([sf_object, "_", operation, "_unsuccessful.csv"])
@@ -183,12 +184,9 @@ class Component(ComponentBase):
                         error_row = row
                         error_row["error"] = parsed_results[i]["error"]
                         writer.writerow(error_row)
-        self.write_tabledef_manifest(unsuccessful_table)
+        self.write_manifest(unsuccessful_table)
 
 
-"""
-        Main entrypoint
-"""
 if __name__ == "__main__":
     try:
         comp = Component()
