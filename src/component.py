@@ -40,8 +40,8 @@ class Component(ComponentBase):
 
         try:
             salesforce_client = self.login_to_salesforce(params)
-        except SalesforceAuthenticationFailed:
-            raise UserException("Authentication Failed : recheck your username, password, and security token ")
+        except SalesforceAuthenticationFailed as e:
+            raise UserException("Authentication Failed : recheck your username, password, and security token ") from e
 
         sf_object = params.get(KEY_OBJECT)
         operation = params.get(KEY_OPERATION).lower()
@@ -56,13 +56,10 @@ class Component(ComponentBase):
 
         logging.info(f"Running {operation} operation with input table to the {sf_object} Salesforce object")
 
-        if params.get(KEY_SERIAL_MODE):
-            concurrency = 'Serial'
-        else:
-            concurrency = 'Parallel'
+        concurrency = 'Serial' if params.get(KEY_SERIAL_MODE) else 'Parallel'
 
         replace_string = params.get(KEY_REPLACE_STRING)
-        input_headers = self.get_input_table().columns
+        input_headers = input_table.columns
         if replace_string:
             input_headers = self.replace_headers(input_headers, replace_string)
         if upsert_field_name and upsert_field_name.strip() not in input_headers:
@@ -118,7 +115,10 @@ class Component(ComponentBase):
         with open(input_table.full_path, mode='r') as in_file:
             reader = csv.DictReader(in_file, fieldnames=input_headers)
             for input_row in reader:
-                yield input_row
+                if sorted(input_row.values()) == sorted(input_headers):
+                    logging.debug("Skipping header")
+                else:
+                    yield input_row
 
     @staticmethod
     def get_chunks(generator, chunk_size):
@@ -137,8 +137,7 @@ class Component(ComponentBase):
         batch = salesforce_client.post_batch(job, csv_iter)
         salesforce_client.wait_for_batch(job, batch)
         salesforce_client.close_job(job)
-        result = salesforce_client.get_batch_results(batch)
-        return result
+        return salesforce_client.get_batch_results(batch)
 
     @staticmethod
     def parse_results(results):
