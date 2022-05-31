@@ -1,14 +1,11 @@
-'''
-Template Component main class.
-
-'''
 from retry import retry
 import logging
 import csv
 from simple_salesforce.exceptions import SalesforceAuthenticationFailed
 from salesforce_bulk import CsvDictsAdapter, BulkApiError
 
-from keboola.component.base import ComponentBase, UserException
+from keboola.component.base import ComponentBase
+from keboola.component.exceptions import UserException
 from salesforce.client import SalesforceClient
 
 KEY_USERNAME = "username"
@@ -23,11 +20,13 @@ KEY_ASSIGNMENT_ID = "assignment_id"
 KEY_UPSERT_FIELD_NAME = "upsert_field_name"
 KEY_SERIAL_MODE = "serial_mode"
 KEY_OUTPUT_ERRORS = "output_errors"
+KEY_FAIL_ON_ERROR = "fail_on_error"
 
 REQUIRED_PARAMETERS = [KEY_USERNAME, KEY_OBJECT, KEY_PASSWORD, KEY_SECURITY_TOKEN, KEY_OPERATION]
 REQUIRED_IMAGE_PARS = []
 
-BATCH_LIMIT = 8000
+BATCH_LIMIT = 2500
+LOG_LIMIT = 15
 
 
 class Component(ComponentBase):
@@ -36,10 +35,6 @@ class Component(ComponentBase):
                          required_image_parameters=REQUIRED_IMAGE_PARS)
 
     def run(self):
-        '''
-        Main execution code
-        '''
-
         params = self.configuration.parameters
         input_table = self.get_input_table()
 
@@ -91,7 +86,12 @@ class Component(ComponentBase):
         logging.info(
             f"All data written to salesforce, {operation}ed {num_success} records, {num_errors} errors occurred")
 
-        self.write_unsuccessful(parsed_results, input_table, input_headers, sf_object, operation)
+        if params.get(KEY_FAIL_ON_ERROR):
+            self.log_errors(parsed_results, input_table, input_headers)
+            raise UserException(
+                f"{num_errors} errors occurred, since fail on error has been selected, the job has failed.")
+        else:
+            self.write_unsuccessful(parsed_results, input_table, input_headers, sf_object, operation)
 
     @retry(SalesforceAuthenticationFailed, tries=3, delay=5)
     def login_to_salesforce(self, params):
@@ -117,8 +117,6 @@ class Component(ComponentBase):
     def get_input_file_reader(input_table, input_headers):
         with open(input_table.full_path, mode='r') as in_file:
             reader = csv.DictReader(in_file, fieldnames=input_headers)
-            #  skip first row headers as input header has been specified
-            next(reader)
             for input_row in reader:
                 yield input_row
 
@@ -134,7 +132,8 @@ class Component(ComponentBase):
         if chunk:
             yield chunk
 
-    def get_job_result(self, salesforce_client, job, csv_iter):
+    @staticmethod
+    def get_job_result(salesforce_client, job, csv_iter):
         batch = salesforce_client.post_batch(job, csv_iter)
         salesforce_client.wait_for_batch(job, batch)
         salesforce_client.close_job(job)
@@ -158,14 +157,22 @@ class Component(ComponentBase):
                             sf_object, operation, concurrency, assignement_id):
         results = []
         for i, chunk in enumerate(self.get_chunks(input_file_reader, BATCH_LIMIT)):
-            job = salesforce_client.create_job(sf_object, operation, external_id_name=upsert_field_name,
-                                               contentType='CSV', concurrency=concurrency,
-                                               assignement_id=assignement_id)
-
-            csv_iter = CsvDictsAdapter(iter(chunk))
-            job_result = self.get_job_result(salesforce_client, job, csv_iter)
+            logging.info(f"Processing chunk #{i}")
+            job_result = self.process_job(upsert_field_name, salesforce_client, sf_object, operation, concurrency,
+                                          assignement_id, chunk)
             results.extend(job_result)
         return results
+
+    @retry(delay=10, tries=4, backoff=2, exceptions=BulkApiError)
+    def process_job(self, upsert_field_name, salesforce_client, sf_object, operation, concurrency, assignement_id,
+                    chunk):
+
+        job = salesforce_client.create_job(sf_object, operation, external_id_name=upsert_field_name,
+                                           contentType='CSV', concurrency=concurrency,
+                                           assignement_id=assignement_id)
+
+        csv_iter = CsvDictsAdapter(iter(chunk))
+        return self.get_job_result(salesforce_client, job, csv_iter)
 
     def write_unsuccessful(self, parsed_results, input_table, input_headers, sf_object, operation):
         unsuccessful_table_name = "".join([sf_object, "_", operation, "_unsuccessful.csv"])
@@ -176,18 +183,30 @@ class Component(ComponentBase):
         with open(unsuccessful_table.full_path, 'w+', newline='') as out_table:
             writer = csv.DictWriter(out_table, fieldnames=fieldnames, lineterminator='\n', delimiter=',')
             with open(input_table.full_path, 'r') as input_table:
-                reader = csv.DictReader(input_table)
+                reader = csv.DictReader(input_table, input_headers)
                 for i, row in enumerate(reader):
                     if parsed_results[i]["success"] == "false":
                         error_row = row
                         error_row["error"] = parsed_results[i]["error"]
                         writer.writerow(error_row)
-        self.write_tabledef_manifest(unsuccessful_table)
+        self.write_manifest(unsuccessful_table)
+
+    @staticmethod
+    def log_errors(parsed_results, input_table, input_headers):
+        logging.warning(f"Logging first {LOG_LIMIT} errors")
+        fieldnames = input_headers
+        fieldnames.append("error")
+        with open(input_table.full_path, 'r') as input_table:
+            reader = csv.DictReader(input_table, fieldnames=fieldnames)
+            for i, row in enumerate(reader):
+                if parsed_results[i]["success"] == "false":
+                    error_row = row
+                    error_row["error"] = parsed_results[i]["error"]
+                    logging.warning(f"Failed to update row : {error_row}")
+                if i >= LOG_LIMIT - 1:
+                    break
 
 
-"""
-        Main entrypoint
-"""
 if __name__ == "__main__":
     try:
         comp = Component()
