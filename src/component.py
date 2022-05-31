@@ -183,13 +183,12 @@ class Component(ComponentBase):
         unsuccessful_table = self.create_out_table_definition(name=unsuccessful_table_name, columns=fieldnames)
         with open(unsuccessful_table.full_path, 'w+', newline='') as out_table:
             writer = csv.DictWriter(out_table, fieldnames=fieldnames, lineterminator='\n', delimiter=',')
-            with open(input_table.full_path, 'r') as input_table:
-                reader = csv.DictReader(input_table, input_headers)
-                for i, row in enumerate(reader):
-                    if parsed_results[i]["success"] == "false":
-                        error_row = row
-                        error_row["error"] = parsed_results[i]["error"]
-                        writer.writerow(error_row)
+            in_file_reader = self.get_input_file_reader(input_table, input_headers)
+            for i, row in enumerate(in_file_reader):
+                if parsed_results[i]["success"] == "false":
+                    error_row = row
+                    error_row["error"] = parsed_results[i]["error"]
+                    writer.writerow(error_row)
         self.write_manifest(unsuccessful_table)
 
     @staticmethod
