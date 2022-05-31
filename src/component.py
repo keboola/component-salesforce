@@ -89,7 +89,7 @@ class Component(ComponentBase):
             raise UserException(
                 f"{num_errors} errors occurred, since fail on error has been selected, the job has failed.")
         else:
-            self.write_unsuccessful(parsed_results, input_table, input_headers, sf_object, operation)
+            self.write_unsuccessful(parsed_results, input_headers, sf_object, operation)
 
     @retry(SalesforceAuthenticationFailed, tries=3, delay=5)
     def login_to_salesforce(self, params):
@@ -175,7 +175,7 @@ class Component(ComponentBase):
         csv_iter = CsvDictsAdapter(iter(chunk))
         return self.get_job_result(salesforce_client, job, csv_iter)
 
-    def write_unsuccessful(self, parsed_results, input_table, input_headers, sf_object, operation):
+    def write_unsuccessful(self, parsed_results, input_headers, sf_object, operation):
         unsuccessful_table_name = "".join([sf_object, "_", operation, "_unsuccessful.csv"])
         logging.info(f"Saving errors to {unsuccessful_table_name}")
         fieldnames = input_headers.copy()
