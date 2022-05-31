@@ -178,12 +178,12 @@ class Component(ComponentBase):
     def write_unsuccessful(self, parsed_results, input_table, input_headers, sf_object, operation):
         unsuccessful_table_name = "".join([sf_object, "_", operation, "_unsuccessful.csv"])
         logging.info(f"Saving errors to {unsuccessful_table_name}")
-        fieldnames = input_headers
+        fieldnames = input_headers.copy()
         fieldnames.append("error")
         unsuccessful_table = self.create_out_table_definition(name=unsuccessful_table_name, columns=fieldnames)
         with open(unsuccessful_table.full_path, 'w+', newline='') as out_table:
             writer = csv.DictWriter(out_table, fieldnames=fieldnames, lineterminator='\n', delimiter=',')
-            in_file_reader = self.get_input_file_reader(input_table, input_headers)
+            in_file_reader = self.get_input_file_reader(self.get_input_table(), input_headers)
             for i, row in enumerate(in_file_reader):
                 if parsed_results[i]["success"] == "false":
                     error_row = row
