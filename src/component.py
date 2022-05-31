@@ -1,5 +1,6 @@
 from retry import retry
 import logging
+import requests
 import csv
 from simple_salesforce.exceptions import SalesforceAuthenticationFailed
 from salesforce_bulk import CsvDictsAdapter, BulkApiError
@@ -133,6 +134,7 @@ class Component(ComponentBase):
             yield chunk
 
     @staticmethod
+    @retry(delay=10, tries=4, backoff=2, exceptions=requests.exceptions.ConnectionError)
     def get_job_result(salesforce_client, job, csv_iter):
         batch = salesforce_client.post_batch(job, csv_iter)
         salesforce_client.wait_for_batch(job, batch)
