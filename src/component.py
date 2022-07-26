@@ -88,8 +88,10 @@ class Component(ComponentBase):
             self.log_errors(parsed_results, input_table, input_headers)
             raise UserException(
                 f"{num_errors} errors occurred, since fail on error has been selected, the job has failed.")
-        else:
+        elif num_errors > 0:
             self.write_unsuccessful(parsed_results, input_headers, sf_object, operation)
+        else:
+            logging.info("Process was successful")
 
     @retry(SalesforceAuthenticationFailed, tries=3, delay=5)
     def login_to_salesforce(self, params):
@@ -191,20 +193,17 @@ class Component(ComponentBase):
                     writer.writerow(error_row)
         self.write_manifest(unsuccessful_table)
 
-    @staticmethod
-    def log_errors(parsed_results, input_table, input_headers):
+    def log_errors(self, parsed_results, input_table, input_headers):
         logging.warning(f"Logging first {LOG_LIMIT} errors")
-        fieldnames = input_headers
+        fieldnames = input_headers.copy()
         fieldnames.append("error")
-        with open(input_table.full_path, 'r') as input_table:
-            reader = csv.DictReader(input_table, fieldnames=fieldnames)
-            for i, row in enumerate(reader):
-                if parsed_results[i]["success"] == "false":
-                    error_row = row
-                    error_row["error"] = parsed_results[i]["error"]
-                    logging.warning(f"Failed to update row : {error_row}")
-                if i >= LOG_LIMIT - 1:
-                    break
+        for i, row in enumerate(self.get_input_file_reader(input_table, input_headers)):
+            if parsed_results[i]["success"] == "false":
+                error_row = row
+                error_row["error"] = parsed_results[i]["error"]
+                logging.warning(f"Failed to update row : {error_row}")
+            if i >= LOG_LIMIT - 1:
+                break
 
 
 if __name__ == "__main__":
