@@ -84,7 +84,7 @@ class Component(ComponentBase):
         logging.info(
             f"All data written to salesforce, {operation}ed {num_success} records, {num_errors} errors occurred")
 
-        if params.get(KEY_FAIL_ON_ERROR):
+        if params.get(KEY_FAIL_ON_ERROR) and num_errors > 0:
             self.log_errors(parsed_results, input_table, input_headers)
             raise UserException(
                 f"{num_errors} errors occurred, since fail on error has been selected, the job has failed.")
