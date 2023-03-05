@@ -86,19 +86,34 @@ class Component(ComponentBase):
             f"All data written to salesforce, {operation}ed {num_success} records, {num_errors} errors occurred")
 
         if num_errors > 0:
-            self.write_unsuccessful(parsed_results, input_headers, sf_object, operation)
-            error_table = self.get_error_table_name(operation, sf_object)
-
-            if params.get(KEY_FAIL_ON_ERROR):
-                raise UserException(
-                    f"{num_errors} errors occurred. "
-                    f"Additional details are available in the error log table: {error_table}")
-            else:
-                logging.warning(f"{num_errors} errors occurred. "
-                                "The process is marked as success because the 'Fail on error' parameter is set to false"
-                                f"Additional details are available in the error log table: {error_table}")
+            self._process_failures(parsed_results, input_headers, sf_object, operation, num_errors)
         else:
             logging.info("Process was successful")
+
+    def _process_failures(self, parsed_results, input_headers, sf_object, operation, num_errors: int):
+        """
+        Process and output log of failed records.
+        Args:
+            parsed_results:
+            input_headers:
+            sf_object:
+            operation:
+            num_errors:
+
+        Returns:
+
+        """
+        self.write_unsuccessful(parsed_results, input_headers, sf_object, operation)
+        error_table = self.get_error_table_name(operation, sf_object)
+
+        if self.configuration.parameters.get(KEY_FAIL_ON_ERROR):
+            raise UserException(
+                f"{num_errors} errors occurred. "
+                f"Additional details are available in the error log table: {error_table}")
+        else:
+            logging.warning(f"{num_errors} errors occurred. "
+                            "The process is marked as success because the 'Fail on error' parameter is set to false. "
+                            f"Additional details are available in the error log table: {error_table}")
 
     @retry(SalesforceAuthenticationFailed, tries=3, delay=5)
     def login_to_salesforce(self, params):
