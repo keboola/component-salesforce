@@ -1,4 +1,5 @@
 import csv
+import json
 import logging
 
 import requests
@@ -191,7 +192,12 @@ class Component(ComponentBase):
                     error_row = row
                     error_row["error"] = parsed_results[i]["error"]
                     writer.writerow(error_row)
-        self.write_manifest(unsuccessful_table)
+        # TODO: remove when write_always added to the library
+        # self.write_manifest(unsuccessful_table)
+        manifest = unsuccessful_table.get_manifest_dictionary()
+        manifest['write_always'] = True
+        with open(unsuccessful_table.full_path + '.manifest', 'w') as manifest_file:
+            json.dump(manifest, manifest_file)
 
     def log_errors(self, parsed_results, input_table, input_headers):
         logging.warning(f"Logging first {LOG_LIMIT} errors")
