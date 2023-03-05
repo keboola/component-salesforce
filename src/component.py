@@ -1,12 +1,13 @@
-from retry import retry
-import logging
-import requests
 import csv
-from simple_salesforce.exceptions import SalesforceAuthenticationFailed
-from salesforce_bulk import CsvDictsAdapter, BulkApiError
+import logging
 
+import requests
 from keboola.component.base import ComponentBase
 from keboola.component.exceptions import UserException
+from retry import retry
+from salesforce_bulk import CsvDictsAdapter, BulkApiError
+from simple_salesforce.exceptions import SalesforceAuthenticationFailed
+
 from salesforce.client import SalesforceClient
 
 KEY_USERNAME = "username"
@@ -20,7 +21,6 @@ KEY_OPERATION = "operation"
 KEY_ASSIGNMENT_ID = "assignment_id"
 KEY_UPSERT_FIELD_NAME = "upsert_field_name"
 KEY_SERIAL_MODE = "serial_mode"
-KEY_OUTPUT_ERRORS = "output_errors"
 KEY_FAIL_ON_ERROR = "fail_on_error"
 
 REQUIRED_PARAMETERS = [KEY_USERNAME, KEY_OBJECT, KEY_PASSWORD, KEY_SECURITY_TOKEN, KEY_OPERATION]
