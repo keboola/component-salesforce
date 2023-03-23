@@ -1,12 +1,15 @@
-from retry import retry
-import logging
-import requests
 import csv
-from simple_salesforce.exceptions import SalesforceAuthenticationFailed
-from salesforce_bulk import CsvDictsAdapter, BulkApiError
+import json
+import logging
+import os
 
+import requests
 from keboola.component.base import ComponentBase
 from keboola.component.exceptions import UserException
+from retry import retry
+from salesforce_bulk import CsvDictsAdapter, BulkApiError
+from simple_salesforce.exceptions import SalesforceAuthenticationFailed
+
 from salesforce.client import SalesforceClient
 
 KEY_USERNAME = "username"
@@ -20,7 +23,6 @@ KEY_OPERATION = "operation"
 KEY_ASSIGNMENT_ID = "assignment_id"
 KEY_UPSERT_FIELD_NAME = "upsert_field_name"
 KEY_SERIAL_MODE = "serial_mode"
-KEY_OUTPUT_ERRORS = "output_errors"
 KEY_FAIL_ON_ERROR = "fail_on_error"
 
 REQUIRED_PARAMETERS = [KEY_USERNAME, KEY_OBJECT, KEY_PASSWORD, KEY_SECURITY_TOKEN, KEY_OPERATION]
@@ -84,14 +86,35 @@ class Component(ComponentBase):
         logging.info(
             f"All data written to salesforce, {operation}ed {num_success} records, {num_errors} errors occurred")
 
-        if params.get(KEY_FAIL_ON_ERROR) and num_errors > 0:
-            self.log_errors(parsed_results, input_table, input_headers)
-            raise UserException(
-                f"{num_errors} errors occurred, since fail on error has been selected, the job has failed.")
-        elif num_errors > 0:
-            self.write_unsuccessful(parsed_results, input_headers, sf_object, operation)
+        if num_errors > 0:
+            self._process_failures(parsed_results, input_headers, sf_object, operation, num_errors)
         else:
             logging.info("Process was successful")
+
+    def _process_failures(self, parsed_results, input_headers, sf_object, operation, num_errors: int):
+        """
+        Process and output log of failed records.
+        Args:
+            parsed_results:
+            input_headers:
+            sf_object:
+            operation:
+            num_errors:
+
+        Returns:
+
+        """
+        self.write_unsuccessful(parsed_results, input_headers, sf_object, operation)
+        error_table = self.get_error_table_name(operation, sf_object)
+
+        if self.configuration.parameters.get(KEY_FAIL_ON_ERROR):
+            raise UserException(
+                f"{num_errors} errors occurred. "
+                f"Additional details are available in the error log table: {error_table}")
+        else:
+            logging.warning(f"{num_errors} errors occurred. "
+                            "The process is marked as success because the 'Fail on error' parameter is set to false. "
+                            f"Additional details are available in the error log table: {error_table}")
 
     @retry(SalesforceAuthenticationFailed, tries=3, delay=5)
     def login_to_salesforce(self, params):
@@ -178,7 +201,7 @@ class Component(ComponentBase):
         return self.get_job_result(salesforce_client, job, csv_iter)
 
     def write_unsuccessful(self, parsed_results, input_headers, sf_object, operation):
-        unsuccessful_table_name = "".join([sf_object, "_", operation, "_unsuccessful.csv"])
+        unsuccessful_table_name = self.get_error_table_name(operation, sf_object)
         logging.info(f"Saving errors to {unsuccessful_table_name}")
         fieldnames = input_headers.copy()
         fieldnames.append("error")
@@ -191,7 +214,21 @@ class Component(ComponentBase):
                     error_row = row
                     error_row["error"] = parsed_results[i]["error"]
                     writer.writerow(error_row)
-        self.write_manifest(unsuccessful_table)
+
+        # TODO: remove when write_always added to the library
+        # self.write_manifest(unsuccessful_table)
+        manifest = unsuccessful_table.get_manifest_dictionary()
+        if 'queuev2' in os.environ.get('KBC_PROJECT_FEATURE_GATES', ''):
+            manifest['write_always'] = True
+        else:
+            logging.warning("Running on old queue, "
+                            "result log will not be stored unless continue on failure is selected")
+        with open(unsuccessful_table.full_path + '.manifest', 'w') as manifest_file:
+            json.dump(manifest, manifest_file)
+
+    def get_error_table_name(self, operation, sf_object):
+        unsuccessful_table_name = "".join([sf_object, "_", operation, "_unsuccessful.csv"])
+        return unsuccessful_table_name
 
     def log_errors(self, parsed_results, input_table, input_headers):
         logging.warning(f"Logging first {LOG_LIMIT} errors")

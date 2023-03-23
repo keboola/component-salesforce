@@ -30,7 +30,7 @@
       "format": "checkbox",
       "type": "boolean",
       "propertyOrder": 30,
-      "default" : true
+      "default": true
     },
     "replace_string": {
       "title": "Replace string",
@@ -52,23 +52,16 @@
     "assignment_id": {
       "title": "Assignment Id",
       "type": "string",
-      "description": "ID of Lead Assignment rule you want to run after import",
+      "description": "ID of Lead <a href =\"https://help.salesforce.com/s/articleView?id=sf.customize_leadrules.htm&language=en_US&type=5\">Assignment rule</a> you want to run after import. <a href=\"https://help.salesforce.com/s/articleView?id=000381858&type=1\">See how to find it</a>.",
       "propertyOrder": 60
-    },
-    "output_errors": {
-      "title": "Output errors",
-      "format": "checkbox",
-      "type": "boolean",
-      "propertyOrder": 70,
-      "default" : true
     },
     "fail_on_error": {
       "title": "Fail on error",
       "format": "checkbox",
-      "description" : "When checked, the component job will fail if any error occurs. If unchecked, the component will be successful if some errors occur.",
+      "description": "When checked, the component job will fail if any error occurs. If unchecked, the component will be successful if some errors occur.",
       "type": "boolean",
       "propertyOrder": 80,
-      "default" : true
+      "default": true
     }
   }
 }
