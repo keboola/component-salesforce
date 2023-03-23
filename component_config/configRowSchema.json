@@ -52,7 +52,7 @@
     "assignment_id": {
       "title": "Assignment Id",
       "type": "string",
-      "description": "ID of Lead Assignment rule you want to run after import",
+      "description": "ID of Lead <a href =\"https://help.salesforce.com/s/articleView?id=sf.customize_leadrules.htm&language=en_US&type=5\">Assignment rule</a> you want to run after import. <a href=\"https://help.salesforce.com/s/articleView?id=000381858&type=1\">See how to find it</a>.",
       "propertyOrder": 60
     },
     "fail_on_error": {

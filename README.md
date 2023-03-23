@@ -1,18 +1,19 @@
 # Salesforce writer
 
 The component takes files from in/tables directory and insert/upsert/update/delete appropriate records. The input table
-must have a header with field names, which has to exists in Salesforce. ID column is used to identify record which will
+must have a header with field names, which has to exist in Salesforce. ID column is used to identify record which will
 be updated. When inserting records all required fields has to be filled in.
 
 The process can fail on any records (due to missing required field or too large string) and this specific record will
-not be inserted/updated/upserted/deleted. You can specify whether you want the writer to output the errors to a table.
+not be inserted/updated/upserted/deleted. In case of failure, the failed rows with additional detail will be stored in
+result table  `{OBJECT_NAME}_{LOAD_TYPE}_unsuccessful` e.g. `Contact_upsert_unsuccessful`
+
 Everything else will finish with success. There is no way how to rollback this transaction, so you have to carefully
 check the log each time. It is also great idea to include a column with external IDs and based on them do upsert later.
 External IDs will also save you from duplicated records when running insert several times.
 
 If you need you can set the fail on error parameter true, this will cause the job of a component to fail if 1 or more
-records fail to be inserted/updated/upserted/deleted. It is however it is recommended to have a pipeline set up to
-processes unsuccessful updates and not have the component fail.
+records fail to be inserted/updated/upserted/deleted.
 
 **NOTE** The component processes all records on the input and outputs tables containing the failed records with reason
 of failure. The table names are constructed as `{OBJECT_NAME}_{LOAD_TYPE}_unsuccessful`
@@ -37,6 +38,7 @@ e.g. `Contact_upsert_unsuccessful`
 * upsertField - required when the operation is upsert
 * operation - (REQ) specify the operation you wish to do. Insert/Upsert/Update/Delete are supported.
 * serialMode - true if you wish to run the import in serial mode.
+* Assignment rule ID - ID of Lead [Assignment rule](https://help.salesforce.com/s/articleView?id=sf.customize_leadrules.htm&language=en_US&type=5) you want to run after import. [How to find it](https://help.salesforce.com/s/articleView?id=000381858&type=1).
 * replaceString - string to be replaced in column name for dot, so you can use that column as reference to other record
   via external id
 * fail_on_error - if you want the job to fail on any error, set this to true and the job will fail if more than 0 errors
