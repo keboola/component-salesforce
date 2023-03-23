@@ -1,6 +1,7 @@
 import csv
 import json
 import logging
+import os
 
 import requests
 from keboola.component.base import ComponentBase
@@ -213,10 +214,15 @@ class Component(ComponentBase):
                     error_row = row
                     error_row["error"] = parsed_results[i]["error"]
                     writer.writerow(error_row)
+
         # TODO: remove when write_always added to the library
         # self.write_manifest(unsuccessful_table)
         manifest = unsuccessful_table.get_manifest_dictionary()
-        manifest['write_always'] = True
+        if 'queuev2' in os.environ.get('KBC_PROJECT_FEATURE_GATES', ''):
+            manifest['write_always'] = True
+        else:
+            logging.warning("Running on old queue, "
+                            "result log will not be stored unless continue on failure is selected")
         with open(unsuccessful_table.full_path + '.manifest', 'w') as manifest_file:
             json.dump(manifest, manifest_file)
 
