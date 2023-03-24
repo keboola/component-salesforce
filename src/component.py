@@ -2,9 +2,10 @@ import csv
 import json
 import logging
 import os
+from typing import Dict, List
 
 import requests
-from keboola.component.base import ComponentBase
+from keboola.component.base import ComponentBase, sync_action
 from keboola.component.exceptions import UserException
 from retry import retry
 from salesforce_bulk import CsvDictsAdapter, BulkApiError
@@ -242,11 +243,30 @@ class Component(ComponentBase):
             if i >= LOG_LIMIT - 1:
                 break
 
+    @sync_action('loadObjects')
+    def load_possible_objects(self) -> List[Dict]:
+        """
+        Finds all possible objects in Salesforce that can be fetched by the Bulk API
+
+        Returns: a List of dictionaries containing 'name' and 'value' of the SF object, where 'name' is the Label name/
+        readable name of the object, and 'value' is the name of the object you can use to query the object
+
+        """
+        params = self.configuration.parameters
+        salesforce_client = self.get_salesforce_client(params)
+        return salesforce_client.get_bulk_fetchable_objects()
+
+    def get_salesforce_client(self, params) -> SalesforceClient:
+        try:
+            return self.login_to_salesforce(params)
+        except SalesforceAuthenticationFailed as e:
+            raise UserException("Authentication Failed : recheck your username, password, and security token ") from e
+
 
 if __name__ == "__main__":
     try:
         comp = Component()
-        comp.run()
+        comp.execute_action()
     except UserException as exc:
         logging.exception(exc)
         exit(1)

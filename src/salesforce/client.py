@@ -2,12 +2,25 @@ from urllib.parse import urlparse
 
 from salesforce_bulk import SalesforceBulk
 from salesforce_bulk.salesforce_bulk import DEFAULT_API_VERSION
+from simple_salesforce import Salesforce
 from six import text_type
 import requests
 import xml.etree.ElementTree as ET
 from retry import retry
 
 NON_SUPPORTED_BULK_FIELD_TYPES = ["address", "location", "base64", "reference"]
+
+# Some objects are not supported by bulk and there is no exact way to determine them, they must be set like this
+# https://help.salesforce.com/s/articleView?id=000383508&type=1
+OBJECTS_NOT_SUPPORTED_BY_BULK = ["AccountFeed", "AssetFeed", "AccountHistory", "AcceptedEventRelation",
+                                 "DeclinedEventRelation", "AggregateResult", "AttachedContentDocument", "CaseStatus",
+                                 "CaseTeamMember", "CaseTeamRole", "CaseTeamTemplate", "CaseTeamTemplateMember",
+                                 "CaseTeamTemplateRecord", "CombinedAttachment", "ContentFolderItem", "ContractStatus",
+                                 "EventWhoRelation", "FolderedContentDocument", "KnowledgeArticleViewStat",
+                                 "KnowledgeArticleVoteStat", "LookedUpFromActivity", "Name", "NoteAndAttachment",
+                                 "OpenActivity", "OwnedContentDocument", "PartnerRole", "RecentlyViewed",
+                                 "ServiceAppointmentStatus", "SolutionStatus", "TaskPriority", "TaskStatus",
+                                 "TaskWhoRelation", "UserRecordAccess", "WorkOrderLineItemStatus", "WorkOrderStatus"]
 
 
 class SalesforceClient(SalesforceBulk):
@@ -18,6 +31,13 @@ class SalesforceClient(SalesforceBulk):
         super().__init__(sessionId, host, username, password,
                          API_version, sandbox,
                          security_token, organizationId, client_id, domain)
+
+        if domain is None and sandbox:
+            domain = 'test'
+
+        self.simple_client = Salesforce(username=username, password=password, security_token=security_token,
+                                        organizationId=organizationId, client_id=client_id,
+                                        domain=domain, version=API_version)
 
         self.host = urlparse(self.endpoint).hostname
 
@@ -58,3 +78,13 @@ class SalesforceClient(SalesforceBulk):
         self.job_content_types[job_id] = contentType
 
         return job_id
+
+    def get_bulk_fetchable_objects(self):
+        all_s_objects = self.simple_client.describe()["sobjects"]
+        to_fetch = []
+        # Only objects with the 'queryable' set to True and ones that are not in the OBJECTS_NOT_SUPPORTED_BY_BULK are
+        # queryable by the Bulk API. This list might not be exact, and some edge-cases might have to be addressed.
+        for sf_object in all_s_objects:
+            if sf_object.get('queryable') and not sf_object.get('name') in OBJECTS_NOT_SUPPORTED_BY_BULK:
+                to_fetch.append({"label": sf_object.get('label'), 'value': sf_object.get('name')})
+        return to_fetch

@@ -10,7 +10,15 @@
     "sf_object": {
       "title": "Object",
       "type": "string",
+      "enum": [],
+      "format": "select",
       "propertyOrder": 10,
+      "options": {
+        "async": {
+          "label": "Re-load Objects",
+          "action": "loadObjects"
+        }
+      },
       "description": "Salesforce object eg. Contact"
     },
     "operation": {
