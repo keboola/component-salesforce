@@ -41,6 +41,11 @@
       "format": "checkbox",
       "description": "Download records from sandbox instead of the production environment.",
       "propertyOrder": 40
+    },
+    "test_connection": {
+      "type": "button",
+      "format": "test-connection",
+      "propertyOrder": 50
     }
   }
 }

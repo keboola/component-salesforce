@@ -264,6 +264,15 @@ class Component(ComponentBase):
         except SalesforceAuthenticationFailed as e:
             raise UserException("Authentication Failed : recheck your username, password, and security token ") from e
 
+    @sync_action('testConnection')
+    def test_connection(self):
+        """
+        Tries to log into Salesforce, raises user exception if login params ar incorrect
+
+        """
+        params = self.configuration.parameters
+        self.get_salesforce_client(params)
+
 
 if __name__ == "__main__":
     try:
