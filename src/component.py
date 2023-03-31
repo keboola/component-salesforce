@@ -35,10 +35,12 @@ LOG_LIMIT = 15
 
 class Component(ComponentBase):
     def __init__(self):
-        super().__init__(required_parameters=REQUIRED_PARAMETERS,
-                         required_image_parameters=REQUIRED_IMAGE_PARS)
+        super().__init__()
 
     def run(self):
+        self.validate_configuration_parameters(REQUIRED_PARAMETERS)
+        self.validate_image_parameters(REQUIRED_IMAGE_PARS)
+
         params = self.configuration.parameters
         input_table = self.get_input_table()
 
