@@ -16,6 +16,7 @@ from salesforce.client import SalesforceClient
 KEY_USERNAME = "username"
 KEY_PASSWORD = "#password"
 KEY_SECURITY_TOKEN = "#security_token"
+KEY_API_VERSION = "api_version"
 KEY_SANDBOX = "sandbox"
 
 KEY_OBJECT = "sf_object"
@@ -31,6 +32,8 @@ REQUIRED_IMAGE_PARS = []
 
 BATCH_LIMIT = 2500
 LOG_LIMIT = 15
+
+DEFAULT_API_VERSION = "40.0"
 
 
 class Component(ComponentBase):
@@ -124,6 +127,7 @@ class Component(ComponentBase):
         return SalesforceClient(username=params.get(KEY_USERNAME),
                                 password=params.get(KEY_PASSWORD),
                                 security_token=params.get(KEY_SECURITY_TOKEN),
+                                API_version=params.get(KEY_API_VERSION, DEFAULT_API_VERSION),
                                 sandbox=params.get(KEY_SANDBOX))
 
     def get_input_table(self):
