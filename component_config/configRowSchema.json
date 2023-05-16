@@ -43,13 +43,13 @@
     "replace_string": {
       "title": "Replace string",
       "type": "string",
-      "description": "String to be replaced for dot in column name",
+      "description": "Set the string that should be replaced for a dot (\".\") in all column names that contain the replace. e.g. with replace string set to __ the column contact__address will be sent to salesforce as contact.address.",
       "propertyOrder": 40
     },
     "upsert_field_name": {
-      "title": "Upsert field name",
+      "title": "External ID",
       "type": "string",
-      "description": "Name of the file where external IDs are stored for upsert operation",
+      "description": "Specify which column in the input table is an External ID for the upsert operation. Values in the External ID column must be unique. More information on importing with External IDs can be found in <a href='https://help.salesforce.com/s/articleView?id=sf.faq_import_general_what_is_an_external.htm&type=5'>Salesforce documentation</a>.",
       "options": {
         "dependencies": {
           "operation": "Upsert"

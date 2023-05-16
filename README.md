@@ -35,7 +35,7 @@ e.g. `Contact_upsert_unsuccessful`
 ## Row configuration
 
 * object - (REQ) name of object you wish to perform the operation on
-* upsertField - required when the operation is upsert
+* upsertField - required when the operation is upsert, in case you have no external ID, you must set it up, or use insert and update operations separately to perform the upsert.
 * operation - (REQ) specify the operation you wish to do. Insert/Upsert/Update/Delete are supported.
 * serialMode - true if you wish to run the import in serial mode.
 * Assignment rule ID - ID of Lead [Assignment rule](https://help.salesforce.com/s/articleView?id=sf.customize_leadrules.htm&language=en_US&type=5) you want to run after import. [How to find it](https://help.salesforce.com/s/articleView?id=000381858&type=1).
