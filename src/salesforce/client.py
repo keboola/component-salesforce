@@ -26,7 +26,7 @@ OBJECTS_NOT_SUPPORTED_BY_BULK = ["AccountFeed", "AssetFeed", "AccountHistory", "
 class SalesforceClient(SalesforceBulk):
     def __init__(self, sessionId=None, host=None, username=None, password=None,
                  API_version=DEFAULT_API_VERSION, sandbox=False,
-                 security_token=None, organizationId=None, client_id=None, domain=None):
+                 security_token=None, organizationId=None, client_id=None, domain=None, proxy=None):
 
         super().__init__(sessionId, host, username, password,
                          API_version, sandbox,
