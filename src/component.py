@@ -267,7 +267,7 @@ class Component(ComponentBase):
         """
         for proxy_type in proxy_config.get('proxy_types'):
             os.environ[proxy_type.upper() + "_PROXY"] = proxy_type + "://" + proxy_config.get('proxy_server')
-        logging.info(f"Component will use proxy.")
+        logging.info("Component will use proxy.")
 
     @sync_action('loadObjects')
     def load_possible_objects(self) -> List[Dict]:
