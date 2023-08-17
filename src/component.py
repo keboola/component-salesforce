@@ -27,6 +27,11 @@ KEY_UPSERT_FIELD_NAME = "upsert_field_name"
 KEY_SERIAL_MODE = "serial_mode"
 KEY_FAIL_ON_ERROR = "fail_on_error"
 
+KEY_PROXY = "proxy"
+KEY_USE_PROXY = "use_proxy"
+KEY_HTTP_PROXY = "http_proxy"
+KEY_HTTPS_PROXY = "https_proxy"
+
 REQUIRED_PARAMETERS = [KEY_USERNAME, KEY_OBJECT, KEY_PASSWORD, KEY_SECURITY_TOKEN, KEY_OPERATION]
 REQUIRED_IMAGE_PARS = []
 
@@ -46,8 +51,8 @@ class Component(ComponentBase):
 
         params = self.configuration.parameters
 
-        proxy_config = params.get("proxy", {})
-        if proxy_config.get("use_proxy"):
+        proxy_config = params.get(KEY_PROXY, {})
+        if proxy_config.get(KEY_USE_PROXY):
             self.set_proxy(proxy_config)
 
         input_table = self.get_input_table()
@@ -266,8 +271,8 @@ class Component(ComponentBase):
         os.environ['HTTP_PROXY'] = 'http://proxy.server:port'
         os.environ['HTTPS_PROXY'] = 'https://proxy.server:port'
         """
-        http_proxy = proxy_config.get("http_proxy")
-        https_proxy = proxy_config.get("https_proxy")
+        http_proxy = proxy_config.get(KEY_HTTP_PROXY)
+        https_proxy = proxy_config.get(KEY_HTTPS_PROXY)
 
         if http_proxy:
             os.environ["HTTP_PROXY"] = f"http://{http_proxy}"
