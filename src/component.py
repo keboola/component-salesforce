@@ -47,7 +47,8 @@ class Component(ComponentBase):
         params = self.configuration.parameters
 
         proxy_config = params.get("proxy", {})
-        self.set_proxy(proxy_config) if proxy_config else None
+        if proxy_config.get("use_proxy"):
+            self.set_proxy(proxy_config)
 
         input_table = self.get_input_table()
 
@@ -265,8 +266,15 @@ class Component(ComponentBase):
         os.environ['HTTP_PROXY'] = 'http://proxy.server:port'
         os.environ['HTTPS_PROXY'] = 'https://proxy.server:port'
         """
-        for proxy_type in proxy_config.get('proxy_types'):
-            os.environ[proxy_type.upper() + "_PROXY"] = proxy_type + "://" + proxy_config.get('proxy_server')
+        http_proxy = proxy_config.get("http_proxy")
+        https_proxy = proxy_config.get("https_proxy")
+
+        if http_proxy:
+            os.environ["HTTP_PROXY"] = f"http://{http_proxy}"
+
+        if https_proxy:
+            os.environ["HTTPS_PROXY"] = f"https://{https_proxy}"
+
         logging.info("Component will use proxy.")
 
     @sync_action('loadObjects')

@@ -99,28 +99,9 @@
           "default": false,
           "propertyOrder": 1
         },
-        "proxy_types": {
-          "type": "array",
-          "title": "Proxy Type",
-          "items": {
-            "enum": [
-              "http",
-              "https"
-            ],
-            "type": "string"
-          },
-          "format": "select",
-          "uniqueItems": true,
-          "propertyOrder": 2,
-          "options": {
-            "dependencies": {
-              "use_proxy": true
-            }
-          }
-        },
-        "proxy_server": {
+        "http_proxy": {
           "type": "string",
-          "title": "Proxy server",
+          "title": "HTTP Proxy server",
           "description": "Please enter the proxy server in (username:password@)your.proxy.server.com(:port) format.",
           "options": {
             "dependencies": {
@@ -128,6 +109,17 @@
             }
           },
           "propertyOrder": 3
+        },
+        "https_proxy": {
+          "type": "string",
+          "title": "HTTPS Proxy server",
+          "description": "Please enter the proxy server in (username:password@)your.proxy.server.com(:port) format.",
+          "options": {
+            "dependencies": {
+              "use_proxy": true
+            }
+          },
+          "propertyOrder": 4
         }
       }
     },
