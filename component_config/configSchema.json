@@ -87,24 +87,47 @@
       "description": "Specify the version of API you want to extract data from",
       "propertyOrder": 50
     },
-        "proxy": {
+    "proxy": {
       "type": "object",
-          "title": "Proxy Settings",
-          "propertyOrder": 60,
+      "title": "Proxy Settings",
+      "propertyOrder": 60,
       "properties": {
         "use_proxy": {
           "title": "Use Proxy",
           "type": "boolean",
           "format": "checkbox",
-          "default": false
+          "default": false,
+          "propertyOrder": 1
         },
-        "proxy_settings": {
-          "type": "string",
+        "proxy_types": {
+          "type": "array",
+          "title": "Proxy Type",
+          "items": {
+            "enum": [
+              "http",
+              "https"
+            ],
+            "type": "string"
+          },
+          "format": "select",
+          "uniqueItems": true,
+          "propertyOrder": 2,
           "options": {
             "dependencies": {
               "use_proxy": true
             }
           }
+        },
+        "proxy_server": {
+          "type": "string",
+          "title": "Proxy server",
+          "description": "Please enter the proxy server in (username:password@)your.proxy.server.com(:port) format.",
+          "options": {
+            "dependencies": {
+              "use_proxy": true
+            }
+          },
+          "propertyOrder": 3
         }
       }
     },

@@ -45,6 +45,10 @@ class Component(ComponentBase):
         self.validate_image_parameters(REQUIRED_IMAGE_PARS)
 
         params = self.configuration.parameters
+
+        proxy_config = params.get("proxy", {})
+        self.set_proxy(proxy_config) if proxy_config else None
+
         input_table = self.get_input_table()
 
         try:
@@ -124,11 +128,16 @@ class Component(ComponentBase):
 
     @retry(SalesforceAuthenticationFailed, tries=3, delay=5)
     def login_to_salesforce(self, params):
-        return SalesforceClient(username=params.get(KEY_USERNAME),
-                                password=params.get(KEY_PASSWORD),
-                                security_token=params.get(KEY_SECURITY_TOKEN),
-                                API_version=params.get(KEY_API_VERSION, DEFAULT_API_VERSION),
-                                sandbox=params.get(KEY_SANDBOX))
+        try:
+            client = SalesforceClient(username=params.get(KEY_USERNAME),
+                                      password=params.get(KEY_PASSWORD),
+                                      security_token=params.get(KEY_SECURITY_TOKEN),
+                                      API_version=params.get(KEY_API_VERSION, DEFAULT_API_VERSION),
+                                      sandbox=params.get(KEY_SANDBOX))
+        except requests.exceptions.ProxyError:
+            raise UserException("Cannot connect to proxy.")
+
+        return client
 
     def get_input_table(self):
         input_tables = self.get_input_tables_definitions()
@@ -248,6 +257,17 @@ class Component(ComponentBase):
                 logging.warning(f"Failed to update row : {error_row}")
             if i >= LOG_LIMIT - 1:
                 break
+
+    @staticmethod
+    def set_proxy(proxy_config: dict) -> None:
+        """
+        Sets proxy using environmental variables
+        os.environ['HTTP_PROXY'] = 'http://proxy.server:port'
+        os.environ['HTTPS_PROXY'] = 'https://proxy.server:port'
+        """
+        for proxy_type in proxy_config.get('proxy_types'):
+            os.environ[proxy_type.upper() + "_PROXY"] = proxy_type + "://" + proxy_config.get('proxy_server')
+        logging.info(f"Component will use proxy.")
 
     @sync_action('loadObjects')
     def load_possible_objects(self) -> List[Dict]:
