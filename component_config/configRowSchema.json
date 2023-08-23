@@ -21,6 +21,25 @@
       },
       "description": "Salesforce object eg. Contact"
     },
+    "sf_fields": {
+      "type": "array",
+      "items": {
+        "enum": [
+        ],
+        "type": "string"
+      },
+      "default": [],
+      "format": "select",
+      "title": "Load SF fields",
+      "options": {
+        "async": {
+          "label": "Re-load Fields",
+          "action": "loadSFFields"
+        }
+      },
+      "uniqueItems": true,
+      "propertyOrder": 20
+    },
     "operation": {
       "title": "Operation",
       "type": "string",

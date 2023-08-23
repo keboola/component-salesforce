@@ -7,6 +7,7 @@ from typing import Dict, List
 import requests
 from keboola.component.base import ComponentBase, sync_action
 from keboola.component.exceptions import UserException
+from keboola.component.sync_actions import SelectElement
 from retry import retry
 from salesforce_bulk import CsvDictsAdapter, BulkApiError
 from simple_salesforce.exceptions import SalesforceAuthenticationFailed
@@ -249,19 +250,6 @@ class Component(ComponentBase):
             if i >= LOG_LIMIT - 1:
                 break
 
-    @sync_action('loadObjects')
-    def load_possible_objects(self) -> List[Dict]:
-        """
-        Finds all possible objects in Salesforce that can be fetched by the Bulk API
-
-        Returns: a List of dictionaries containing 'name' and 'value' of the SF object, where 'name' is the Label name/
-        readable name of the object, and 'value' is the name of the object you can use to query the object
-
-        """
-        params = self.configuration.parameters
-        salesforce_client = self.get_salesforce_client(params)
-        return salesforce_client.get_bulk_fetchable_objects()
-
     def get_salesforce_client(self, params) -> SalesforceClient:
         try:
             return self.login_to_salesforce(params)
@@ -276,6 +264,29 @@ class Component(ComponentBase):
         """
         params = self.configuration.parameters
         self.get_salesforce_client(params)
+
+    @sync_action('loadObjects')
+    def load_possible_objects(self) -> List[Dict]:
+        """
+        Finds all possible objects in Salesforce that can be fetched by the Bulk API
+
+        Returns: a List of dictionaries containing 'name' and 'value' of the SF object, where 'name' is the Label name/
+        readable name of the object, and 'value' is the name of the object you can use to query the object
+
+        """
+        params = self.configuration.parameters
+        salesforce_client = self.get_salesforce_client(params)
+        return salesforce_client.get_bulk_fetchable_objects()
+
+    @sync_action("loadFields")
+    def load_fields(self) -> List[SelectElement]:
+        """Returns fields available for selected object."""
+        params = self.configuration.parameters
+        object_name = params.get("sf_object")
+        api_version = params.get("api_version")
+        salesforce_client = self.get_salesforce_client(params)
+        descriptions = salesforce_client.describe_object_w_metadata(object_name, api_version)
+        return [SelectElement(label=f'{field[0]} ({field[1]})', value=field[0]) for field in descriptions]
 
 
 if __name__ == "__main__":

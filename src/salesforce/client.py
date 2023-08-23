@@ -1,8 +1,9 @@
+from typing import OrderedDict
 from urllib.parse import urlparse
 
 from salesforce_bulk import SalesforceBulk
 from salesforce_bulk.salesforce_bulk import DEFAULT_API_VERSION
-from simple_salesforce import Salesforce
+from simple_salesforce import Salesforce, SFType
 from six import text_type
 import requests
 import xml.etree.ElementTree as ET
@@ -88,3 +89,19 @@ class SalesforceClient(SalesforceBulk):
             if sf_object.get('queryable') and not sf_object.get('name') in OBJECTS_NOT_SUPPORTED_BY_BULK:
                 to_fetch.append({"label": sf_object.get('label'), 'value': sf_object.get('name')})
         return to_fetch
+
+    @retry(tries=3, delay=5)
+    def describe_object_w_metadata(self, sf_object: str, api_version):
+        salesforce_type = SFType(sf_object, self.sessionId, self.host, sf_version=api_version)
+
+        try:
+            object_desc = salesforce_type.describe()
+        except ConnectionError:
+            pass
+
+        return [(field['name'], field['type']) for field in object_desc['fields']
+                if self.is_bulk_supported_field(field)]
+
+    @staticmethod
+    def is_bulk_supported_field(field: OrderedDict) -> bool:
+        return field["type"] not in NON_SUPPORTED_BULK_FIELD_TYPES
