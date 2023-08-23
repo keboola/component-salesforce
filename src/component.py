@@ -278,8 +278,8 @@ class Component(ComponentBase):
         salesforce_client = self.get_salesforce_client(params)
         return salesforce_client.get_bulk_fetchable_objects()
 
-    @sync_action("loadFields")
-    def load_fields(self) -> List[SelectElement]:
+    @sync_action("loadSFFields")
+    def load_sf_fields(self) -> List[SelectElement]:
         """Returns fields available for selected object."""
         params = self.configuration.parameters
         object_name = params.get("sf_object")
