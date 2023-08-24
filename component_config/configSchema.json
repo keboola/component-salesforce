@@ -99,7 +99,7 @@
           "default": false,
           "propertyOrder": 1
         },
-        "http_proxy": {
+        "#http_proxy": {
           "type": "string",
           "title": "HTTP Proxy server",
           "format": "password",
@@ -111,7 +111,7 @@
           },
           "propertyOrder": 3
         },
-        "https_proxy": {
+        "#https_proxy": {
           "type": "string",
           "title": "HTTPS Proxy server",
           "format": "password",

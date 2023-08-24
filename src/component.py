@@ -29,8 +29,8 @@ KEY_FAIL_ON_ERROR = "fail_on_error"
 
 KEY_PROXY = "proxy"
 KEY_USE_PROXY = "use_proxy"
-KEY_HTTP_PROXY = "http_proxy"
-KEY_HTTPS_PROXY = "https_proxy"
+KEY_HTTP_PROXY = "#http_proxy"
+KEY_HTTPS_PROXY = "#https_proxy"
 
 REQUIRED_PARAMETERS = [KEY_USERNAME, KEY_OBJECT, KEY_PASSWORD, KEY_SECURITY_TOKEN, KEY_OPERATION]
 REQUIRED_IMAGE_PARS = []
@@ -275,6 +275,9 @@ class Component(ComponentBase):
         """
         http_proxy = proxy_config.get(KEY_HTTP_PROXY)
         https_proxy = proxy_config.get(KEY_HTTPS_PROXY)
+
+        if not (http_proxy or https_proxy):
+            raise UserException("You have selected use_proxy parameter, but you have not configured any proxies.")
 
         if http_proxy:
             os.environ["HTTP_PROXY"] = f"http://{http_proxy}"
