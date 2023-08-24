@@ -97,6 +97,7 @@ class SalesforceClient(SalesforceBulk):
         try:
             object_desc = salesforce_type.describe()
         except ConnectionError:
+            # TODO: handle error properly
             pass
 
         return [(field['name'], field['type']) for field in object_desc['fields']
