@@ -40,8 +40,6 @@ LOG_LIMIT = 15
 
 DEFAULT_API_VERSION = "40.0"
 
-# note
-
 
 class Component(ComponentBase):
     def __init__(self):
@@ -53,9 +51,7 @@ class Component(ComponentBase):
 
         params = self.configuration.parameters
 
-        proxy_config = params.get(KEY_PROXY, {})
-        if proxy_config.get(KEY_USE_PROXY):
-            self.set_proxy(proxy_config)
+        self.set_proxy(params)
 
         input_table = self.get_input_table()
 
@@ -266,8 +262,13 @@ class Component(ComponentBase):
             if i >= LOG_LIMIT - 1:
                 break
 
+    def set_proxy(self, params: dict):
+        proxy_config = params.get(KEY_PROXY, {})
+        if proxy_config.get(KEY_USE_PROXY):
+            self._set_proxy(proxy_config)
+
     @staticmethod
-    def set_proxy(proxy_config: dict) -> None:
+    def _set_proxy(proxy_config: dict) -> None:
         """
         Sets proxy using environmental variables
         os.environ['HTTP_PROXY'] = 'http://proxy.server:port'
@@ -309,10 +310,10 @@ class Component(ComponentBase):
     @sync_action('testConnection')
     def test_connection(self):
         """
-        Tries to log into Salesforce, raises user exception if login params ar incorrect
-
+        Tries to log into Salesforce, raises user exception if login params are incorrect
         """
         params = self.configuration.parameters
+        self.set_proxy(params)
         self.get_salesforce_client(params)
 
 
