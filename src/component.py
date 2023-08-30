@@ -290,7 +290,7 @@ class Component(ComponentBase):
             logging.info("Component will use http proxy.")
 
         if https_proxy:
-            os.environ["HTTPS_PROXY"] = f"https://{https_proxy}"
+            os.environ["HTTPS_PROXY"] = f"http://{https_proxy}"
             logging.info("Component will use https proxy.")
 
     @sync_action('loadObjects')
