@@ -132,11 +132,6 @@ class Component(ComponentBase):
 
     @retry(SalesforceAuthenticationFailed, tries=3, delay=5)
     def login_to_salesforce(self, params):
-        client = SalesforceClient(username=params.get(KEY_USERNAME),
-                                  password=params.get(KEY_PASSWORD),
-                                  security_token=params.get(KEY_SECURITY_TOKEN),
-                                  API_version=params.get(KEY_API_VERSION, DEFAULT_API_VERSION),
-                                  sandbox=params.get(KEY_SANDBOX))
         try:
             client = SalesforceClient(username=params.get(KEY_USERNAME),
                                       password=params.get(KEY_PASSWORD),
