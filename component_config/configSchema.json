@@ -99,18 +99,6 @@
           "default": false,
           "propertyOrder": 1
         },
-        "#http_proxy": {
-          "type": "string",
-          "title": "HTTP Proxy server",
-          "format": "password",
-          "description": "Please enter the proxy server in (username:password@)your.proxy.server.com(:port) format.",
-          "options": {
-            "dependencies": {
-              "use_proxy": true
-            }
-          },
-          "propertyOrder": 3
-        },
         "#https_proxy": {
           "type": "string",
           "title": "HTTPS Proxy server",
@@ -121,7 +109,7 @@
               "use_proxy": true
             }
           },
-          "propertyOrder": 4
+          "propertyOrder": 2
         }
       }
     },

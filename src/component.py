@@ -29,7 +29,6 @@ KEY_FAIL_ON_ERROR = "fail_on_error"
 
 KEY_PROXY = "proxy"
 KEY_USE_PROXY = "use_proxy"
-KEY_HTTP_PROXY = "#http_proxy"
 KEY_HTTPS_PROXY = "#https_proxy"
 
 REQUIRED_PARAMETERS = [KEY_USERNAME, KEY_OBJECT, KEY_PASSWORD, KEY_SECURITY_TOKEN, KEY_OPERATION]
@@ -271,22 +270,18 @@ class Component(ComponentBase):
     def _set_proxy(proxy_config: dict) -> None:
         """
         Sets proxy using environmental variables
-        os.environ['HTTP_PROXY'] = 'http://proxy.server:port'
         os.environ['HTTPS_PROXY'] = 'https://proxy.server:port'
         """
-        http_proxy = proxy_config.get(KEY_HTTP_PROXY)
         https_proxy = proxy_config.get(KEY_HTTPS_PROXY)
 
-        if not (http_proxy or https_proxy):
+        if not https_proxy:
             raise UserException("You have selected use_proxy parameter, but you have not configured any proxies.")
 
-        if http_proxy:
-            os.environ["HTTP_PROXY"] = f"http://{http_proxy}"
-            logging.info("Component will use http proxy.")
-
         if https_proxy:
+            # This is a case of special non-credentials http proxy which also supports https proxy used in CSAS
             os.environ["HTTPS_PROXY"] = f"http://{https_proxy}"
-            logging.info("Component will use https proxy.")
+            os.environ["HTTP_PROXY"] = f"http://{https_proxy}"
+            logging.info("Component will use proxy.")
 
     @sync_action('loadObjects')
     def load_possible_objects(self) -> List[Dict]:
