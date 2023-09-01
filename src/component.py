@@ -261,7 +261,8 @@ class Component(ComponentBase):
             if i >= LOG_LIMIT - 1:
                 break
 
-    def set_proxy(self, params: dict):
+    def set_proxy(self, params: dict) -> None:
+        """Sets proxy if defined"""
         proxy_config = params.get(KEY_PROXY, {})
         if proxy_config.get(KEY_USE_PROXY):
             self._set_proxy(proxy_config)
