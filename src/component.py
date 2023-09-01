@@ -279,7 +279,7 @@ class Component(ComponentBase):
             raise UserException("You have selected use_proxy parameter, but you have not configured any proxies.")
 
         if https_proxy:
-            # This is a case of special non-credentials http proxy which also supports https proxy used in CSAS
+            # This is a case of special non-credentials http proxy which also supports https proxy
             os.environ["HTTPS_PROXY"] = f"http://{https_proxy}"
             os.environ["HTTP_PROXY"] = f"http://{https_proxy}"
             logging.info("Component will use proxy.")
