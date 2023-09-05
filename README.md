@@ -50,7 +50,11 @@ e.g. `Contact_upsert_unsuccessful`
 }
 ```
 
-With this configuration, a proxy server with address `user:pwdpwd@144.49.99.170:8080` will be used.
+With this configuration, a proxy server with address `https://user:pwdpwd@144.49.99.170:8080` will be used.
+
+If you set the **Use HTTP proxy for HTTPS** option to `true`, `http://user:pwdpwd@144.49.99.170:8080` will be used.
+
+
 
 ## Row configuration
 
