@@ -102,14 +102,23 @@
         },
         "proxy_server": {
           "type": "string",
-          "title": "HTTPS Proxy Server address and port",
-          "description": "Please use address:port format.",
+          "title": "HTTPS Proxy Server Address",
           "options": {
             "dependencies": {
               "use_proxy": true
             }
           },
           "propertyOrder": 2
+        },
+        "proxy_port": {
+          "type": "string",
+          "title": "HTTPS Proxy Server Port",
+          "options": {
+            "dependencies": {
+              "use_proxy": true
+            }
+          },
+          "propertyOrder": 3
         },
         "username": {
           "type": "string",
@@ -119,7 +128,7 @@
               "use_proxy": true
             }
           },
-          "propertyOrder": 3
+          "propertyOrder": 4
         },
         "#password": {
           "type": "string",
@@ -130,7 +139,7 @@
               "use_proxy": true
             }
           },
-          "propertyOrder": 4
+          "propertyOrder": 5
         }
       }
     },

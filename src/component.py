@@ -30,6 +30,7 @@ KEY_FAIL_ON_ERROR = "fail_on_error"
 KEY_PROXY = "proxy"
 KEY_USE_PROXY = "use_proxy"
 KEY_PROXY_SERVER = "proxy_server"
+KEY_PROXY_PORT = "proxy_port"
 KEY_PROXY_USERNAME = "username"
 KEY_PROXY_PASSWORD = "#password"
 KEY_USE_HTTP_PROXY_AS_HTTPS = "use_http_proxy_as_https"
@@ -278,22 +279,18 @@ class Component(ComponentBase):
         os.environ['HTTPS_PROXY'] = (username:password@)your.proxy.server.com(:port)
         """
         proxy_server = proxy_config.get(KEY_PROXY_SERVER)
+        proxy_port = proxy_config.get(KEY_PROXY_PORT)
         proxy_username = proxy_config.get(KEY_PROXY_USERNAME)
         proxy_password = proxy_config.get(KEY_PROXY_PASSWORD)
         use_http_proxy_as_https = proxy_config.get(KEY_USE_HTTP_PROXY_AS_HTTPS)
-        _proxy_credentials = ""
 
         if not proxy_server:
             raise UserException("You have selected use_proxy parameter, but you have not specified proxy server.")
+        if not proxy_port:
+            raise UserException("You have selected use_proxy parameter, but you have not specified proxy port.")
 
-        if proxy_username:
-            logging.info(f"Proxy username {proxy_username} will be used.")
-            if proxy_password:
-                _proxy_credentials = f"{proxy_username}:{proxy_password}@"
-                logging.info("Proxy password will be used.")
-            _proxy_credentials = f"{proxy_username}@"
-
-        _proxy_server = f"{_proxy_credentials}{proxy_server}"
+        _proxy_credentials = f"{proxy_username}:{proxy_password}@" if proxy_username and proxy_password else ""
+        _proxy_server = f"{_proxy_credentials}{proxy_server}:{proxy_port}"
 
         if use_http_proxy_as_https:
             # This is a case of http proxy which also supports https.
