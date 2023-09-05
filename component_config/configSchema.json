@@ -102,8 +102,8 @@
         },
         "proxy_server": {
           "type": "string",
-          "title": "HTTP Proxy Server address and port in address:port format.",
-          "description": "",
+          "title": "HTTPS Proxy Server address and port",
+          "description": "Please use address:port format.",
           "options": {
             "dependencies": {
               "use_proxy": true
@@ -113,7 +113,7 @@
         },
         "username": {
           "type": "string",
-          "title": "HTTP Proxy Server Username (optional)",
+          "title": "HTTPS Proxy Server Username (Optional)",
           "options": {
             "dependencies": {
               "use_proxy": true
@@ -123,7 +123,7 @@
         },
         "#password": {
           "type": "string",
-          "title": "HTTP Proxy Server Password (Optional)",
+          "title": "HTTPS Proxy Server Password (Optional)",
           "format": "password",
           "options": {
             "dependencies": {
