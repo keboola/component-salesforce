@@ -29,7 +29,10 @@ KEY_FAIL_ON_ERROR = "fail_on_error"
 
 KEY_PROXY = "proxy"
 KEY_USE_PROXY = "use_proxy"
-KEY_HTTPS_PROXY = "#https_proxy"
+KEY_PROXY_SERVER = "proxy_server"
+KEY_PROXY_USERNAME = "username"
+KEY_PROXY_PASSWORD = "#password"
+KEY_USE_HTTP_PROXY_AS_HTTPS = "use_http_proxy_as_https"
 
 REQUIRED_PARAMETERS = [KEY_USERNAME, KEY_OBJECT, KEY_PASSWORD, KEY_SECURITY_TOKEN, KEY_OPERATION]
 REQUIRED_IMAGE_PARS = []
@@ -270,19 +273,35 @@ class Component(ComponentBase):
     @staticmethod
     def _set_proxy(proxy_config: dict) -> None:
         """
-        Sets proxy using environmental variables
-        os.environ['HTTPS_PROXY'] = 'https://proxy.server:port'
+        Sets proxy using environmental variables.
+        Also, a special case when http proxy is used for https is handled by using KEY_USE_HTTP_PROXY_AS_HTTPS.
+        os.environ['HTTPS_PROXY'] = (username:password@)your.proxy.server.com(:port)
         """
-        https_proxy = proxy_config.get(KEY_HTTPS_PROXY)
+        proxy_server = proxy_config.get(KEY_PROXY_SERVER)
+        proxy_username = proxy_config.get(KEY_PROXY_USERNAME)
+        proxy_password = proxy_config.get(KEY_PROXY_PASSWORD)
+        use_http_proxy_as_https = proxy_config.get(KEY_USE_HTTP_PROXY_AS_HTTPS)
+        _proxy_credentials = ""
 
-        if not https_proxy:
-            raise UserException("You have selected use_proxy parameter, but you have not configured any proxies.")
+        if not proxy_server:
+            raise UserException("You have selected use_proxy parameter, but you have not specified proxy server.")
 
-        if https_proxy:
-            # This is a case of special non-credentials http proxy which also supports https proxy
-            os.environ["HTTPS_PROXY"] = f"http://{https_proxy}"
-            os.environ["HTTP_PROXY"] = f"http://{https_proxy}"
-            logging.info("Component will use proxy.")
+        if proxy_username:
+            logging.info(f"Proxy username {proxy_username} will be used.")
+            if proxy_password:
+                _proxy_credentials = f"{proxy_username}:{proxy_password}@"
+                logging.info("Proxy password will be used.")
+            _proxy_credentials = f"{proxy_username}@"
+
+        _proxy_server = f"{_proxy_credentials}{proxy_server}"
+
+        if use_http_proxy_as_https:
+            # This is a case of http proxy which also supports https.
+            os.environ["HTTPS_PROXY"] = f"http://{_proxy_server}"
+        else:
+            os.environ["HTTPS_PROXY"] = f"https://{_proxy_server}"
+
+        logging.info("Component will use proxy.")
 
     @sync_action('loadObjects')
     def load_possible_objects(self) -> List[Dict]:

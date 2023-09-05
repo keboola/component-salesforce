@@ -90,6 +90,7 @@
     "proxy": {
       "type": "object",
       "title": "Proxy Settings",
+      "description": "Proxy address will be constructed in (username:password@)your.proxy.server.com(:port) format.",
       "propertyOrder": 60,
       "properties": {
         "use_proxy": {
@@ -99,17 +100,37 @@
           "default": false,
           "propertyOrder": 1
         },
-        "#https_proxy": {
+        "proxy_server": {
           "type": "string",
-          "title": "HTTPS Proxy server",
-          "format": "password",
-          "description": "Please enter the proxy server in (username:password@)your.proxy.server.com(:port) format.",
+          "title": "HTTP Proxy Server address and port in address:port format.",
+          "description": "",
           "options": {
             "dependencies": {
               "use_proxy": true
             }
           },
           "propertyOrder": 2
+        },
+        "username": {
+          "type": "string",
+          "title": "HTTP Proxy Server Username (optional)",
+          "options": {
+            "dependencies": {
+              "use_proxy": true
+            }
+          },
+          "propertyOrder": 3
+        },
+        "#password": {
+          "type": "string",
+          "title": "HTTP Proxy Server Password (Optional)",
+          "format": "password",
+          "options": {
+            "dependencies": {
+              "use_proxy": true
+            }
+          },
+          "propertyOrder": 4
         }
       }
     },
