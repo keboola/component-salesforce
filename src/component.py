@@ -27,6 +27,14 @@ KEY_UPSERT_FIELD_NAME = "upsert_field_name"
 KEY_SERIAL_MODE = "serial_mode"
 KEY_FAIL_ON_ERROR = "fail_on_error"
 
+KEY_PROXY = "proxy"
+KEY_USE_PROXY = "use_proxy"
+KEY_PROXY_SERVER = "proxy_server"
+KEY_PROXY_PORT = "proxy_port"
+KEY_PROXY_USERNAME = "username"
+KEY_PROXY_PASSWORD = "#password"
+KEY_USE_HTTP_PROXY_AS_HTTPS = "use_http_proxy_as_https"
+
 REQUIRED_PARAMETERS = [KEY_USERNAME, KEY_OBJECT, KEY_PASSWORD, KEY_SECURITY_TOKEN, KEY_OPERATION]
 REQUIRED_IMAGE_PARS = []
 
@@ -45,6 +53,9 @@ class Component(ComponentBase):
         self.validate_image_parameters(REQUIRED_IMAGE_PARS)
 
         params = self.configuration.parameters
+
+        self.set_proxy(params)
+
         input_table = self.get_input_table()
 
         try:
@@ -124,11 +135,16 @@ class Component(ComponentBase):
 
     @retry(SalesforceAuthenticationFailed, tries=3, delay=5)
     def login_to_salesforce(self, params):
-        return SalesforceClient(username=params.get(KEY_USERNAME),
-                                password=params.get(KEY_PASSWORD),
-                                security_token=params.get(KEY_SECURITY_TOKEN),
-                                API_version=params.get(KEY_API_VERSION, DEFAULT_API_VERSION),
-                                sandbox=params.get(KEY_SANDBOX))
+        try:
+            client = SalesforceClient(username=params.get(KEY_USERNAME),
+                                      password=params.get(KEY_PASSWORD),
+                                      security_token=params.get(KEY_SECURITY_TOKEN),
+                                      API_version=params.get(KEY_API_VERSION, DEFAULT_API_VERSION),
+                                      sandbox=params.get(KEY_SANDBOX))
+        except requests.exceptions.ProxyError as e:
+            raise UserException(f"Cannot connect to proxy: {e}")
+
+        return client
 
     def get_input_table(self):
         input_tables = self.get_input_tables_definitions()
@@ -249,6 +265,43 @@ class Component(ComponentBase):
             if i >= LOG_LIMIT - 1:
                 break
 
+    def set_proxy(self, params: dict) -> None:
+        """Sets proxy if defined"""
+        proxy_config = params.get(KEY_PROXY, {})
+        if proxy_config.get(KEY_USE_PROXY):
+            self._set_proxy(proxy_config)
+
+    def _set_proxy(self, proxy_config: dict) -> None:
+        """
+        Sets proxy using environmental variables.
+        Also, a special case when http proxy is used for https is handled by using KEY_USE_HTTP_PROXY_AS_HTTPS.
+        os.environ['HTTPS_PROXY'] = (username:password@)your.proxy.server.com(:port)
+        """
+        proxy_server = proxy_config.get(KEY_PROXY_SERVER)
+        proxy_port = str(proxy_config.get(KEY_PROXY_PORT))
+        proxy_username = proxy_config.get(KEY_PROXY_USERNAME)
+        proxy_password = proxy_config.get(KEY_PROXY_PASSWORD)
+        use_http_proxy_as_https = proxy_config.get(
+            KEY_USE_HTTP_PROXY_AS_HTTPS) or self.configuration.image_parameters.get(KEY_USE_HTTP_PROXY_AS_HTTPS)
+
+        if not proxy_server:
+            raise UserException("You have selected use_proxy parameter, but you have not specified proxy server.")
+        if not proxy_port:
+            raise UserException("You have selected use_proxy parameter, but you have not specified proxy port.")
+
+        _proxy_credentials = f"{proxy_username}:{proxy_password}@" if proxy_username and proxy_password else ""
+        _proxy_server = f"{_proxy_credentials}{proxy_server}:{proxy_port}"
+
+        if use_http_proxy_as_https:
+            # This is a case of http proxy which also supports https.
+            _proxy_server = f"http://{_proxy_server}"
+        else:
+            _proxy_server = f"https://{_proxy_server}"
+
+        os.environ["HTTPS_PROXY"] = _proxy_server
+
+        logging.info("Component will use proxy server.")
+
     @sync_action('loadObjects')
     def load_possible_objects(self) -> List[Dict]:
         """
@@ -271,10 +324,10 @@ class Component(ComponentBase):
     @sync_action('testConnection')
     def test_connection(self):
         """
-        Tries to log into Salesforce, raises user exception if login params ar incorrect
-
+        Tries to log into Salesforce, raises user exception if login params are incorrect
         """
         params = self.configuration.parameters
+        self.set_proxy(params)
         self.get_salesforce_client(params)
 
 

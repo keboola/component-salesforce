@@ -31,6 +31,30 @@ e.g. `Contact_upsert_unsuccessful`
 - **Password** - (REQ) your password
 - **Security Token** - (REQ) your security token, don't forget it is different for sandbox
 - **sandbox** - (REQ) true when you want to push data to sandbox
+- **Use Proxy** - (OPT) Section where you can configure https proxy
+  - **Proxy Server** - `STRING` (REQ if Use Proxy is selected) HTTPS Proxy Server Address
+  - **Proxy Port** - `STRING` Proxy Server Port
+  - **Proxy Username** - `STRING` Proxy Server Username
+  - **Proxy Password** - `STRING` Proxy Server Password
+  - **Use HTTP proxy for HTTPS** - `BOOL` This is a hidden configuration option for a type of HTTP proxy that also handles HTTPS.
+
+### Proxy configuration example:
+
+```
+"proxy": {
+  "use_proxy": true,
+  "proxy_server": "144.49.99.170",
+  "username": "user",
+  "#password": "pwdpwd",
+  "port": "8080"
+}
+```
+
+With this configuration, a proxy server with address `https://user:pwdpwd@144.49.99.170:8080` will be used.
+
+If you set the **Use HTTP proxy for HTTPS** option to `true`, `http://user:pwdpwd@144.49.99.170:8080` will be used.
+
+
 
 ## Row configuration
 
