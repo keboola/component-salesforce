@@ -31,6 +31,12 @@ e.g. `Contact_upsert_unsuccessful`
 - **Password** - (REQ) your password
 - **Security Token** - (REQ) your security token, don't forget it is different for sandbox
 - **sandbox** - (REQ) true when you want to push data to sandbox
+- **Use Proxy** - Section where you can configure https proxy
+  - **Proxy Server** - (REQ if Use Proxy is selected) HTTPS Proxy Server Address
+  - **Proxy Port** - Proxy Server Port
+  - **Proxy Username** - Proxy Server Username
+  - **Proxy Password** - Proxy Server Password
+  - **Use HTTP proxy for HTTPS** - This is a hidden configuration option for a type of HTTP proxy that also handles HTTPS.
 
 ## Row configuration
 

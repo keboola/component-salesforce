@@ -294,11 +294,13 @@ class Component(ComponentBase):
 
         if use_http_proxy_as_https:
             # This is a case of http proxy which also supports https.
-            os.environ["HTTPS_PROXY"] = f"http://{_proxy_server}"
+            _proxy_server = f"http://{_proxy_server}"
         else:
-            os.environ["HTTPS_PROXY"] = f"https://{_proxy_server}"
+            _proxy_server = f"https://{_proxy_server}"
 
-        logging.info("Component will use proxy.")
+        os.environ["HTTPS_PROXY"] = _proxy_server
+
+        logging.info("Component will use proxy server.")
 
     @sync_action('loadObjects')
     def load_possible_objects(self) -> List[Dict]:
