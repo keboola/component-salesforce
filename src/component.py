@@ -271,8 +271,7 @@ class Component(ComponentBase):
         if proxy_config.get(KEY_USE_PROXY):
             self._set_proxy(proxy_config)
 
-    @staticmethod
-    def _set_proxy(proxy_config: dict) -> None:
+    def _set_proxy(self, proxy_config: dict) -> None:
         """
         Sets proxy using environmental variables.
         Also, a special case when http proxy is used for https is handled by using KEY_USE_HTTP_PROXY_AS_HTTPS.
@@ -282,7 +281,8 @@ class Component(ComponentBase):
         proxy_port = str(proxy_config.get(KEY_PROXY_PORT))
         proxy_username = proxy_config.get(KEY_PROXY_USERNAME)
         proxy_password = proxy_config.get(KEY_PROXY_PASSWORD)
-        use_http_proxy_as_https = proxy_config.get(KEY_USE_HTTP_PROXY_AS_HTTPS)
+        use_http_proxy_as_https = proxy_config.get(
+            KEY_USE_HTTP_PROXY_AS_HTTPS) or self.configuration.image_parameters.get(KEY_USE_HTTP_PROXY_AS_HTTPS)
 
         if not proxy_server:
             raise UserException("You have selected use_proxy parameter, but you have not specified proxy server.")
