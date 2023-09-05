@@ -90,6 +90,7 @@
     "proxy": {
       "type": "object",
       "title": "Proxy Settings",
+      "format": "grid-strict",
       "description": "Proxy address will be constructed in (username:password@)your.proxy.server.com(:port) format.",
       "propertyOrder": 60,
       "properties": {
@@ -98,12 +99,17 @@
           "type": "boolean",
           "format": "checkbox",
           "default": false,
+          "options": {
+            "grid_columns": 6,
+            "grid_break": true
+          },
           "propertyOrder": 1
         },
         "proxy_server": {
           "type": "string",
           "title": "HTTPS Proxy Server Address",
           "options": {
+            "grid_columns": 8,
             "dependencies": {
               "use_proxy": true
             }
@@ -114,34 +120,49 @@
           "type": "string",
           "title": "HTTPS Proxy Server Port",
           "options": {
+            "grid_columns": 4,
             "dependencies": {
               "use_proxy": true
             }
           },
           "propertyOrder": 3
         },
-        "username": {
-          "type": "string",
-          "title": "HTTPS Proxy Server Username (Optional)",
-          "description": "Please leave empty if your proxy server does not use authentication.",
+        "basic_auth": {
+          "title": "Basic Authentication",
+          "type": "boolean",
+          "format": "checkbox",
+          "default": false,
           "options": {
+            "grid_columns": 6,
+            "grid_break": true,
             "dependencies": {
               "use_proxy": true
             }
           },
-          "propertyOrder": 4
+          "propertyOrder": 6
+        },
+        "username": {
+          "type": "string",
+          "title": "HTTPS Proxy Server Username",
+          "options": {
+            "dependencies": {
+              "use_proxy": true,
+              "basic_auth": true
+            }
+          },
+          "propertyOrder": 10
         },
         "#password": {
           "type": "string",
-          "title": "HTTPS Proxy Server Password (Optional)",
-          "description": "Please leave empty if your proxy server does not use authentication.",
+          "title": "HTTPS Proxy Server Password",
           "format": "password",
           "options": {
             "dependencies": {
-              "use_proxy": true
+              "use_proxy": true,
+              "basic_auth": true
             }
           },
-          "propertyOrder": 5
+          "propertyOrder": 15
         }
       }
     },
