@@ -123,6 +123,7 @@
         "username": {
           "type": "string",
           "title": "HTTPS Proxy Server Username (Optional)",
+          "description": "Please leave empty if your proxy server does not use authentication.",
           "options": {
             "dependencies": {
               "use_proxy": true
@@ -133,6 +134,7 @@
         "#password": {
           "type": "string",
           "title": "HTTPS Proxy Server Password (Optional)",
+          "description": "Please leave empty if your proxy server does not use authentication.",
           "format": "password",
           "options": {
             "dependencies": {
