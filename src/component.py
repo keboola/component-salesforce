@@ -279,7 +279,7 @@ class Component(ComponentBase):
         os.environ['HTTPS_PROXY'] = (username:password@)your.proxy.server.com(:port)
         """
         proxy_server = proxy_config.get(KEY_PROXY_SERVER)
-        proxy_port = proxy_config.get(KEY_PROXY_PORT)
+        proxy_port = str(proxy_config.get(KEY_PROXY_PORT))
         proxy_username = proxy_config.get(KEY_PROXY_USERNAME)
         proxy_password = proxy_config.get(KEY_PROXY_PASSWORD)
         use_http_proxy_as_https = proxy_config.get(KEY_USE_HTTP_PROXY_AS_HTTPS)
