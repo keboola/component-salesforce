@@ -26,6 +26,7 @@ KEY_ASSIGNMENT_ID = "assignment_id"
 KEY_UPSERT_FIELD_NAME = "upsert_field_name"
 KEY_SERIAL_MODE = "serial_mode"
 KEY_FAIL_ON_ERROR = "fail_on_error"
+KEY_PRINT_FAILED_TO_LOG = "print_failed_to_log"
 
 KEY_PROXY = "proxy"
 KEY_USE_PROXY = "use_proxy"
@@ -47,6 +48,7 @@ DEFAULT_API_VERSION = "40.0"
 class Component(ComponentBase):
     def __init__(self):
         super().__init__()
+        self.print_failed_to_log = None
 
     def run(self):
         self.validate_configuration_parameters(REQUIRED_PARAMETERS)
@@ -57,6 +59,8 @@ class Component(ComponentBase):
         self.set_proxy(params)
 
         input_table = self.get_input_table()
+
+        self.print_failed_to_log = params.get(KEY_PRINT_FAILED_TO_LOG)
 
         try:
             salesforce_client = self.login_to_salesforce(params)
@@ -237,6 +241,9 @@ class Component(ComponentBase):
                     error_row = row
                     error_row["error"] = parsed_results[i]["error"]
                     writer.writerow(error_row)
+
+                    if self.print_failed_to_log:
+                        logging.error({"error": error_row["error"], **error_row})
 
         # TODO: remove when write_always added to the library
         # self.write_manifest(unsuccessful_table)

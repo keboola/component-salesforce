@@ -37,6 +37,7 @@ e.g. `Contact_upsert_unsuccessful`
   - **Proxy Username** - `STRING` Proxy Server Username
   - **Proxy Password** - `STRING` Proxy Server Password
   - **Use HTTP proxy for HTTPS** - `BOOL` This is a hidden configuration option for a type of HTTP proxy that also handles HTTPS.
+- **Print Failed to log** - `BOOL` If set to true, the component will log all failed operations into the job's log.
 
 ### Proxy configuration example:
 
