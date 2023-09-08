@@ -48,7 +48,7 @@ DEFAULT_API_VERSION = "40.0"
 class Component(ComponentBase):
     def __init__(self):
         super().__init__()
-        self.print_failed_to_log = None
+        self.print_failed_to_log = False
 
     def run(self):
         self.validate_configuration_parameters(REQUIRED_PARAMETERS)
@@ -60,7 +60,7 @@ class Component(ComponentBase):
 
         input_table = self.get_input_table()
 
-        self.print_failed_to_log = params.get(KEY_PRINT_FAILED_TO_LOG)
+        self.print_failed_to_log = params.get(KEY_PRINT_FAILED_TO_LOG, False)
 
         try:
             salesforce_client = self.login_to_salesforce(params)
