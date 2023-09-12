@@ -70,6 +70,14 @@
       "type": "boolean",
       "propertyOrder": 80,
       "default": true
+    },
+    "print_failed_to_log": {
+      "title": "Print Failed to log",
+      "format": "checkbox",
+      "description": "If set to true, the component will log all failed operations into the job's log.",
+      "type": "boolean",
+      "propertyOrder": 90,
+      "default": false
     }
   }
 }
