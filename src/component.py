@@ -120,7 +120,8 @@ class Component(ComponentBase):
         else:
             logging.info("Process was successful")
 
-    def _process_failures(self, parsed_results, input_headers, sf_object, operation, num_errors: int, original_input_headers):
+    def _process_failures(self, parsed_results, input_headers, sf_object, operation, num_errors: int,
+                          original_input_headers):
         """
         Process and output log of failed records.
         Args:
