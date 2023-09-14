@@ -2,7 +2,7 @@ import csv
 import json
 import logging
 import os
-from typing import Dict, List
+from typing import Dict, List, Iterator
 
 import requests
 from keboola.component.base import ComponentBase, sync_action
@@ -36,8 +36,7 @@ KEY_PROXY_USERNAME = "username"
 KEY_PROXY_PASSWORD = "#password"
 KEY_USE_HTTP_PROXY_AS_HTTPS = "use_http_proxy_as_https"
 
-REQUIRED_PARAMETERS = [KEY_USERNAME, KEY_OBJECT,
-                       KEY_PASSWORD, KEY_SECURITY_TOKEN, KEY_OPERATION]
+REQUIRED_PARAMETERS = [KEY_USERNAME, KEY_OBJECT, KEY_PASSWORD, KEY_SECURITY_TOKEN, KEY_OPERATION]
 REQUIRED_IMAGE_PARS = []
 
 BATCH_LIMIT = 2500
@@ -66,8 +65,7 @@ class Component(ComponentBase):
         try:
             salesforce_client = self.login_to_salesforce(params)
         except SalesforceAuthenticationFailed as e:
-            raise UserException(
-                "Authentication Failed : recheck your username, password, and security token ") from e
+            raise UserException("Authentication Failed : recheck your username, password, and security token ") from e
 
         sf_object = params.get(KEY_OBJECT)
         operation = params.get(KEY_OPERATION).lower()
@@ -80,24 +78,19 @@ class Component(ComponentBase):
         if assignement_id:
             assignement_id = assignement_id.strip()
 
-        logging.info(
-            f"Running {operation} operation with input table to the {sf_object} Salesforce object")
+        logging.info(f"Running {operation} operation with input table to the {sf_object} Salesforce object")
 
         concurrency = 'Serial' if params.get(KEY_SERIAL_MODE) else 'Parallel'
 
         replace_string = params.get(KEY_REPLACE_STRING)
-        original_input_headers = input_table.columns
+        input_headers = input_table.columns
         if replace_string:
-            input_headers = self.replace_headers(
-                original_input_headers, replace_string)
-        else:
-            input_headers = original_input_headers
+            input_headers = self.replace_headers(input_headers, replace_string)
         if upsert_field_name and upsert_field_name.strip() not in input_headers:
             raise UserException(
-                f"Upsert field name {upsert_field_name} not in input table with headers {original_input_headers}")
+                f"Upsert field name {upsert_field_name} not in input table with headers {input_headers}")
 
-        input_file_reader = self.get_input_file_reader(
-            input_table, input_headers, original_input_headers)
+        input_file_reader = self.get_input_file_data(input_table, input_headers)
 
         if operation == "delete" and len(input_headers) != 1:
             raise UserException("Delete operation should only have one column with id, input table contains "
@@ -115,13 +108,11 @@ class Component(ComponentBase):
             f"All data written to salesforce, {operation}ed {num_success} records, {num_errors} errors occurred")
 
         if num_errors > 0:
-            self._process_failures(
-                parsed_results, input_headers, sf_object, operation, num_errors, original_input_headers)
+            self._process_failures(parsed_results, input_headers, sf_object, operation, num_errors)
         else:
             logging.info("Process was successful")
 
-    def _process_failures(self, parsed_results, input_headers, sf_object, operation, num_errors: int,
-                          original_input_headers):
+    def _process_failures(self, parsed_results, input_headers, sf_object, operation, num_errors: int):
         """
         Process and output log of failed records.
         Args:
@@ -134,8 +125,7 @@ class Component(ComponentBase):
         Returns:
 
         """
-        self.write_unsuccessful(
-            parsed_results, input_headers, sf_object, operation, original_input_headers)
+        self.write_unsuccessful(parsed_results, input_headers, sf_object, operation)
         error_table = self.get_error_table_name(operation, sf_object)
 
         if self.configuration.parameters.get(KEY_FAIL_ON_ERROR):
@@ -152,10 +142,8 @@ class Component(ComponentBase):
         try:
             client = SalesforceClient(username=params.get(KEY_USERNAME),
                                       password=params.get(KEY_PASSWORD),
-                                      security_token=params.get(
-                                          KEY_SECURITY_TOKEN),
-                                      API_version=params.get(
-                                          KEY_API_VERSION, DEFAULT_API_VERSION),
+                                      security_token=params.get(KEY_SECURITY_TOKEN),
+                                      API_version=params.get(KEY_API_VERSION, DEFAULT_API_VERSION),
                                       sandbox=params.get(KEY_SANDBOX))
         except requests.exceptions.ProxyError as e:
             raise UserException(f"Cannot connect to proxy: {e}")
@@ -165,28 +153,23 @@ class Component(ComponentBase):
     def get_input_table(self):
         input_tables = self.get_input_tables_definitions()
         if len(input_tables) == 0:
-            raise UserException(
-                "No input table added. Please add an input table")
+            raise UserException("No input table added. Please add an input table")
         elif len(input_tables) > 1:
-            raise UserException(
-                "Too many input tables added. Please add only one input table")
+            raise UserException("Too many input tables added. Please add only one input table")
         return input_tables[0]
 
     @staticmethod
     def replace_headers(input_headers, replace_string):
-        input_headers = [header.replace(replace_string, ".")
-                         for header in input_headers]
+        input_headers = [header.replace(replace_string, ".") for header in input_headers]
         return input_headers
 
     @staticmethod
-    def get_input_file_reader(input_table, input_headers, original_input_headers):
+    def get_input_file_data(input_table, input_headers) -> Iterator[dict]:
         with open(input_table.full_path, mode='r') as in_file:
             reader = csv.DictReader(in_file, fieldnames=input_headers)
-            first_row = next(reader)
-            if sorted(first_row.values()) != sorted(original_input_headers):
-                yield first_row
-            else:
-                logging.debug("Skipping header")
+            # there will always be input header
+            # TODO: this is not true only when before manifests are used, add support
+            next(reader)
             for input_row in reader:
                 yield input_row
 
@@ -216,8 +199,7 @@ class Component(ComponentBase):
         num_errors = 0
         num_success = 0
         for result in results:
-            parsed_results.append(
-                {"id": result.id, "success": result.success, "error": result.error})
+            parsed_results.append({"id": result.id, "success": result.success, "error": result.error})
             if result.success == "false":
                 num_errors = num_errors + 1
             else:
@@ -245,19 +227,15 @@ class Component(ComponentBase):
         csv_iter = CsvDictsAdapter(iter(chunk))
         return self.get_job_result(salesforce_client, job, csv_iter)
 
-    def write_unsuccessful(self, parsed_results, input_headers, sf_object, operation, original_input_headers):
-        unsuccessful_table_name = self.get_error_table_name(
-            operation, sf_object)
+    def write_unsuccessful(self, parsed_results, input_headers, sf_object, operation):
+        unsuccessful_table_name = self.get_error_table_name(operation, sf_object)
         logging.info(f"Saving errors to {unsuccessful_table_name}")
         fieldnames = input_headers.copy()
         fieldnames.append("error")
-        unsuccessful_table = self.create_out_table_definition(
-            name=unsuccessful_table_name, columns=fieldnames)
+        unsuccessful_table = self.create_out_table_definition(name=unsuccessful_table_name, columns=fieldnames)
         with open(unsuccessful_table.full_path, 'w+', newline='') as out_table:
-            writer = csv.DictWriter(
-                out_table, fieldnames=fieldnames, lineterminator='\n', delimiter=',')
-            in_file_reader = self.get_input_file_reader(
-                self.get_input_table(), input_headers, original_input_headers)
+            writer = csv.DictWriter(out_table, fieldnames=fieldnames, lineterminator='\n', delimiter=',')
+            in_file_reader = self.get_input_file_data(self.get_input_table(), input_headers)
             for i, row in enumerate(in_file_reader):
                 if parsed_results[i]["success"] == "false":
                     error_row = row
@@ -265,8 +243,7 @@ class Component(ComponentBase):
                     writer.writerow(error_row)
 
                     if self.print_failed_to_log:
-                        logging.error(
-                            {"error": error_row["error"], **error_row})
+                        logging.error({"error": error_row["error"], **error_row})
 
         # TODO: remove when write_always added to the library
         # self.write_manifest(unsuccessful_table)
@@ -280,15 +257,14 @@ class Component(ComponentBase):
             json.dump(manifest, manifest_file)
 
     def get_error_table_name(self, operation, sf_object):
-        unsuccessful_table_name = "".join(
-            [sf_object, "_", operation, "_unsuccessful.csv"])
+        unsuccessful_table_name = "".join([sf_object, "_", operation, "_unsuccessful.csv"])
         return unsuccessful_table_name
 
-    def log_errors(self, parsed_results, input_table, input_headers, original_input_headers):
+    def log_errors(self, parsed_results, input_table, input_headers):
         logging.warning(f"Logging first {LOG_LIMIT} errors")
         fieldnames = input_headers.copy()
         fieldnames.append("error")
-        for i, row in enumerate(self.get_input_file_reader(input_table, input_headers, original_input_headers)):
+        for i, row in enumerate(self.get_input_file_data(input_table, input_headers)):
             if parsed_results[i]["success"] == "false":
                 error_row = row
                 error_row["error"] = parsed_results[i]["error"]
@@ -316,11 +292,9 @@ class Component(ComponentBase):
             KEY_USE_HTTP_PROXY_AS_HTTPS) or self.configuration.image_parameters.get(KEY_USE_HTTP_PROXY_AS_HTTPS)
 
         if not proxy_server:
-            raise UserException(
-                "You have selected use_proxy parameter, but you have not specified proxy server.")
+            raise UserException("You have selected use_proxy parameter, but you have not specified proxy server.")
         if not proxy_port:
-            raise UserException(
-                "You have selected use_proxy parameter, but you have not specified proxy port.")
+            raise UserException("You have selected use_proxy parameter, but you have not specified proxy port.")
 
         _proxy_credentials = f"{proxy_username}:{proxy_password}@" if proxy_username and proxy_password else ""
         _proxy_server = f"{_proxy_credentials}{proxy_server}:{proxy_port}"
@@ -352,8 +326,7 @@ class Component(ComponentBase):
         try:
             return self.login_to_salesforce(params)
         except SalesforceAuthenticationFailed as e:
-            raise UserException(
-                "Authentication Failed : recheck your username, password, and security token ") from e
+            raise UserException("Authentication Failed : recheck your username, password, and security token ") from e
 
     @sync_action('testConnection')
     def test_connection(self):
