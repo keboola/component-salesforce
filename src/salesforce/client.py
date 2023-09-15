@@ -1,3 +1,4 @@
+import logging
 import xml.etree.ElementTree as ET
 from urllib.parse import urlparse
 
@@ -23,6 +24,13 @@ OBJECTS_NOT_SUPPORTED_BY_BULK = ["AccountFeed", "AssetFeed", "AccountHistory", "
                                  "TaskWhoRelation", "UserRecordAccess", "WorkOrderLineItemStatus", "WorkOrderStatus"]
 
 
+def _backoff_handler(details):
+    # this should never happen, but if it does retry login
+    if 'InvalidSessionId' in str(details['exception']):
+        logging.warning('SessionID invalid, trying to re-login.')
+        details['args'][0].relogin()
+
+
 class SalesforceClient(SalesforceBulk):
     def __init__(self, sessionId=None, host=None, username=None, password=None,
                  API_version=DEFAULT_API_VERSION, sandbox=False,
@@ -34,13 +42,28 @@ class SalesforceClient(SalesforceBulk):
 
         if domain is None and sandbox:
             domain = 'test'
+
+        self._credentials = {"username": username,
+                             "password": password,
+                             "API_version": API_version,
+                             "sandbox": sandbox,
+                             "security_token": security_token,
+                             "organizationId": organizationId,
+                             "client_id": client_id,
+                             "domain": domain}
+
         instance_url = self.endpoint.split('/services')[0]
         self.simple_client = Salesforce(session_id=self.sessionId, instance_url=instance_url,
                                         domain=domain, version=API_version)
 
         self.host = urlparse(self.endpoint).hostname
 
-    @backoff.on_exception(backoff.expo, BulkApiError, max_tries=3)
+    def relogin(self):
+        sessionId, host = SalesforceBulk.login_to_salesforce(**self._credentials)
+        self.sessionId = sessionId
+        self.simple_client.session_id = sessionId
+
+    @backoff.on_exception(backoff.expo, BulkApiError, max_tries=3, on_backoff=_backoff_handler)
     def create_job(self, object_name=None, operation=None, contentType='CSV',
                    concurrency=None, external_id_name=None, pk_chunking=False, assignement_id=None):
         assert (object_name is not None)
@@ -78,7 +101,7 @@ class SalesforceClient(SalesforceBulk):
 
         return job_id
 
-    @backoff.on_exception(backoff.expo, BulkApiError, max_tries=3)
+    @backoff.on_exception(backoff.expo, BulkApiError, max_tries=3, on_backoff=_backoff_handler)
     def get_job_result(self, job, csv_iter):
         batch = self.post_batch(job, csv_iter)
         self.wait_for_batch(job, batch)
