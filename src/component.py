@@ -2,7 +2,7 @@ import csv
 import json
 import logging
 import os
-from typing import Dict, List
+from typing import Dict, List, Iterator
 
 import requests
 from keboola.component.base import ComponentBase, sync_action
@@ -90,7 +90,7 @@ class Component(ComponentBase):
             raise UserException(
                 f"Upsert field name {upsert_field_name} not in input table with headers {input_headers}")
 
-        input_file_reader = self.get_input_file_reader(input_table, input_headers)
+        input_file_reader = self.get_input_file_data(input_table, input_headers)
 
         if operation == "delete" and len(input_headers) != 1:
             raise UserException("Delete operation should only have one column with id, input table contains "
@@ -164,14 +164,14 @@ class Component(ComponentBase):
         return input_headers
 
     @staticmethod
-    def get_input_file_reader(input_table, input_headers):
+    def get_input_file_data(input_table, input_headers) -> Iterator[dict]:
         with open(input_table.full_path, mode='r') as in_file:
             reader = csv.DictReader(in_file, fieldnames=input_headers)
+            # there will always be input header
+            # TODO: this is not true only when before manifests are used, add support
+            next(reader)
             for input_row in reader:
-                if sorted(input_row.values()) == sorted(input_headers):
-                    logging.debug("Skipping header")
-                else:
-                    yield input_row
+                yield input_row
 
     @staticmethod
     def get_chunks(generator, chunk_size):
@@ -235,7 +235,7 @@ class Component(ComponentBase):
         unsuccessful_table = self.create_out_table_definition(name=unsuccessful_table_name, columns=fieldnames)
         with open(unsuccessful_table.full_path, 'w+', newline='') as out_table:
             writer = csv.DictWriter(out_table, fieldnames=fieldnames, lineterminator='\n', delimiter=',')
-            in_file_reader = self.get_input_file_reader(self.get_input_table(), input_headers)
+            in_file_reader = self.get_input_file_data(self.get_input_table(), input_headers)
             for i, row in enumerate(in_file_reader):
                 if parsed_results[i]["success"] == "false":
                     error_row = row
@@ -264,7 +264,7 @@ class Component(ComponentBase):
         logging.warning(f"Logging first {LOG_LIMIT} errors")
         fieldnames = input_headers.copy()
         fieldnames.append("error")
-        for i, row in enumerate(self.get_input_file_reader(input_table, input_headers)):
+        for i, row in enumerate(self.get_input_file_data(input_table, input_headers)):
             if parsed_results[i]["success"] == "false":
                 error_row = row
                 error_row["error"] = parsed_results[i]["error"]
