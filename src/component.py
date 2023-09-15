@@ -137,7 +137,7 @@ class Component(ComponentBase):
                             "The process is marked as success because the 'Fail on error' parameter is set to false. "
                             f"Additional details are available in the error log table: {error_table}")
 
-    @retry(SalesforceAuthenticationFailed, tries=3, delay=5)
+    @retry(SalesforceAuthenticationFailed, tries=2, delay=5)
     def login_to_salesforce(self, params):
         try:
             client = SalesforceClient(username=params.get(KEY_USERNAME),
@@ -186,14 +186,6 @@ class Component(ComponentBase):
             yield chunk
 
     @staticmethod
-    @retry(delay=10, tries=4, backoff=2, exceptions=requests.exceptions.ConnectionError)
-    def get_job_result(salesforce_client, job, csv_iter):
-        batch = salesforce_client.post_batch(job, csv_iter)
-        salesforce_client.wait_for_batch(job, batch)
-        salesforce_client.close_job(job)
-        return salesforce_client.get_batch_results(batch)
-
-    @staticmethod
     def parse_results(results):
         parsed_results = []
         num_errors = 0
@@ -216,7 +208,6 @@ class Component(ComponentBase):
             results.extend(job_result)
         return results
 
-    @retry(delay=10, tries=4, backoff=2, exceptions=BulkApiError)
     def process_job(self, upsert_field_name, salesforce_client, sf_object, operation, concurrency, assignement_id,
                     chunk):
 
@@ -225,7 +216,7 @@ class Component(ComponentBase):
                                            assignement_id=assignement_id)
 
         csv_iter = CsvDictsAdapter(iter(chunk))
-        return self.get_job_result(salesforce_client, job, csv_iter)
+        return salesforce_client.get_job_result(job, csv_iter)
 
     def write_unsuccessful(self, parsed_results, input_headers, sf_object, operation):
         unsuccessful_table_name = self.get_error_table_name(operation, sf_object)

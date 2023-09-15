@@ -1,12 +1,12 @@
+import xml.etree.ElementTree as ET
 from urllib.parse import urlparse
 
+import backoff as backoff
+import requests
 from salesforce_bulk import SalesforceBulk
-from salesforce_bulk.salesforce_bulk import DEFAULT_API_VERSION
+from salesforce_bulk.salesforce_bulk import DEFAULT_API_VERSION, BulkApiError
 from simple_salesforce import Salesforce
 from six import text_type
-import requests
-import xml.etree.ElementTree as ET
-from retry import retry
 
 NON_SUPPORTED_BULK_FIELD_TYPES = ["address", "location", "base64", "reference"]
 
@@ -34,14 +34,13 @@ class SalesforceClient(SalesforceBulk):
 
         if domain is None and sandbox:
             domain = 'test'
-
-        self.simple_client = Salesforce(username=username, password=password, security_token=security_token,
-                                        organizationId=organizationId, client_id=client_id,
+        instance_url = self.endpoint.split('/services')[0]
+        self.simple_client = Salesforce(session_id=self.sessionId, instance_url=instance_url,
                                         domain=domain, version=API_version)
 
         self.host = urlparse(self.endpoint).hostname
 
-    @retry(tries=3, delay=5)
+    @backoff.on_exception(backoff.expo, BulkApiError, max_tries=3)
     def create_job(self, object_name=None, operation=None, contentType='CSV',
                    concurrency=None, external_id_name=None, pk_chunking=False, assignement_id=None):
         assert (object_name is not None)
@@ -78,6 +77,13 @@ class SalesforceClient(SalesforceBulk):
         self.job_content_types[job_id] = contentType
 
         return job_id
+
+    @backoff.on_exception(backoff.expo, BulkApiError, max_tries=3)
+    def get_job_result(self, job, csv_iter):
+        batch = self.post_batch(job, csv_iter)
+        self.wait_for_batch(job, batch)
+        self.close_job(job)
+        return self.get_batch_results(batch)
 
     def get_bulk_fetchable_objects(self):
         all_s_objects = self.simple_client.describe()["sobjects"]
