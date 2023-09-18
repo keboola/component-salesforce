@@ -6,3 +6,4 @@ simple-salesforce==1.12.4
 requests==2.31.0
 pyOpenSSL==23.2.0
 retry
+backoff

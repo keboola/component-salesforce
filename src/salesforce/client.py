@@ -1,12 +1,13 @@
+import logging
+import xml.etree.ElementTree as ET
 from urllib.parse import urlparse
 
+import backoff as backoff
+import requests
 from salesforce_bulk import SalesforceBulk
-from salesforce_bulk.salesforce_bulk import DEFAULT_API_VERSION
+from salesforce_bulk.salesforce_bulk import DEFAULT_API_VERSION, BulkApiError
 from simple_salesforce import Salesforce
 from six import text_type
-import requests
-import xml.etree.ElementTree as ET
-from retry import retry
 
 NON_SUPPORTED_BULK_FIELD_TYPES = ["address", "location", "base64", "reference"]
 
@@ -23,6 +24,13 @@ OBJECTS_NOT_SUPPORTED_BY_BULK = ["AccountFeed", "AssetFeed", "AccountHistory", "
                                  "TaskWhoRelation", "UserRecordAccess", "WorkOrderLineItemStatus", "WorkOrderStatus"]
 
 
+def _backoff_handler(details):
+    # this should never happen, but if it does retry login
+    if 'InvalidSessionId' in str(details['exception']):
+        logging.warning('SessionID invalid, trying to re-login.')
+        details['args'][0].relogin()
+
+
 class SalesforceClient(SalesforceBulk):
     def __init__(self, sessionId=None, host=None, username=None, password=None,
                  API_version=DEFAULT_API_VERSION, sandbox=False,
@@ -35,13 +43,27 @@ class SalesforceClient(SalesforceBulk):
         if domain is None and sandbox:
             domain = 'test'
 
-        self.simple_client = Salesforce(username=username, password=password, security_token=security_token,
-                                        organizationId=organizationId, client_id=client_id,
+        self._credentials = {"username": username,
+                             "password": password,
+                             "API_version": API_version,
+                             "sandbox": sandbox,
+                             "security_token": security_token,
+                             "organizationId": organizationId,
+                             "client_id": client_id,
+                             "domain": domain}
+
+        instance_url = self.endpoint.split('/services')[0]
+        self.simple_client = Salesforce(session_id=self.sessionId, instance_url=instance_url,
                                         domain=domain, version=API_version)
 
         self.host = urlparse(self.endpoint).hostname
 
-    @retry(tries=3, delay=5)
+    def relogin(self):
+        sessionId, host = SalesforceBulk.login_to_salesforce(**self._credentials)
+        self.sessionId = sessionId
+        self.simple_client.session_id = sessionId
+
+    @backoff.on_exception(backoff.expo, BulkApiError, max_tries=3, on_backoff=_backoff_handler)
     def create_job(self, object_name=None, operation=None, contentType='CSV',
                    concurrency=None, external_id_name=None, pk_chunking=False, assignement_id=None):
         assert (object_name is not None)
@@ -78,6 +100,13 @@ class SalesforceClient(SalesforceBulk):
         self.job_content_types[job_id] = contentType
 
         return job_id
+
+    @backoff.on_exception(backoff.expo, BulkApiError, max_tries=3, on_backoff=_backoff_handler)
+    def get_job_result(self, job, csv_iter):
+        batch = self.post_batch(job, csv_iter)
+        self.wait_for_batch(job, batch)
+        self.close_job(job)
+        return self.get_batch_results(batch)
 
     def get_bulk_fetchable_objects(self):
         all_s_objects = self.simple_client.describe()["sobjects"]
