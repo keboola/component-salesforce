@@ -24,11 +24,17 @@ OBJECTS_NOT_SUPPORTED_BY_BULK = ["AccountFeed", "AssetFeed", "AccountHistory", "
                                  "TaskWhoRelation", "UserRecordAccess", "WorkOrderLineItemStatus", "WorkOrderStatus"]
 
 
+class SalesforceClientInputError(Exception):
+    pass
+
+
 def _backoff_handler(details):
     # this should never happen, but if it does retry login
     if 'InvalidSessionId' in str(details['exception']):
         logging.warning('SessionID invalid, trying to re-login.')
         details['args'][0].relogin()
+    if 'ClientInputError' in str(details['exception']):
+        raise SalesforceClientInputError
 
 
 class SalesforceClient(SalesforceBulk):

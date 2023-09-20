@@ -2,6 +2,7 @@ import csv
 import json
 import logging
 import os
+from backoff import on_exception, expo
 from typing import Dict, List, Iterator
 
 import requests
@@ -11,7 +12,7 @@ from retry import retry
 from salesforce_bulk import CsvDictsAdapter, BulkApiError
 from simple_salesforce.exceptions import SalesforceAuthenticationFailed
 
-from salesforce.client import SalesforceClient
+from salesforce.client import SalesforceClient, SalesforceClientInputError
 
 KEY_USERNAME = "username"
 KEY_PASSWORD = "#password"
@@ -39,7 +40,7 @@ KEY_USE_HTTP_PROXY_AS_HTTPS = "use_http_proxy_as_https"
 REQUIRED_PARAMETERS = [KEY_USERNAME, KEY_OBJECT, KEY_PASSWORD, KEY_SECURITY_TOKEN, KEY_OPERATION]
 REQUIRED_IMAGE_PARS = []
 
-BATCH_LIMIT = 2500
+BATCH_LIMIT = 1000
 LOG_LIMIT = 15
 
 DEFAULT_API_VERSION = "40.0"
@@ -208,15 +209,19 @@ class Component(ComponentBase):
             results.extend(job_result)
         return results
 
-    def process_job(self, upsert_field_name, salesforce_client, sf_object, operation, concurrency, assignement_id,
-                    chunk):
-
-        job = salesforce_client.create_job(sf_object, operation, external_id_name=upsert_field_name,
-                                           contentType='CSV', concurrency=concurrency,
-                                           assignement_id=assignement_id)
-
+    @on_exception(expo, SalesforceClientInputError, max_tries=3, factor=2, logger=None)
+    def process_job(self, upsert_field_name, salesforce_client, sf_object, operation, concurrency, assignement_id, chunk):
         csv_iter = CsvDictsAdapter(iter(chunk))
-        return salesforce_client.get_job_result(job, csv_iter)
+        job = self._create_job(salesforce_client, sf_object, operation, upsert_field_name, concurrency, assignement_id)
+        job_result = salesforce_client.get_job_result(job, csv_iter)
+        return job_result
+
+    @staticmethod
+    def _create_job(salesforce_client, sf_object, operation, upsert_field_name, concurrency, assignement_id):
+        logging.info("Creating new job.")
+        return salesforce_client.create_job(sf_object, operation, external_id_name=upsert_field_name,
+                                            contentType='CSV', concurrency=concurrency,
+                                            assignement_id=assignement_id)
 
     def write_unsuccessful(self, parsed_results, input_headers, sf_object, operation):
         unsuccessful_table_name = self.get_error_table_name(operation, sf_object)
