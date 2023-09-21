@@ -299,7 +299,8 @@ class Component(ComponentBase):
         return unsuccessful_table
 
     def get_error_table_name(self, operation, sf_object):
-        unsuccessful_table_name = "".join([sf_object, "_", operation, "_unsuccessful.csv"])
+        config_row_id = self.environment_variables.KBC_CONFIGROWID
+        unsuccessful_table_name = f"{sf_object}_{operation}_unsuccessful_{config_row_id}.csv"
         return unsuccessful_table_name
 
     def log_errors(self, parsed_results, input_table, input_headers):
