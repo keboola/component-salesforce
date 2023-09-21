@@ -299,7 +299,7 @@ class Component(ComponentBase):
         return unsuccessful_table
 
     def get_error_table_name(self, operation, sf_object):
-        config_row_id = os.environ.get("KBC_CONFIGROWID'", "KBC_CONFIGROWID")
+        config_row_id = os.environ.get("KBC_CONFIGROWID", "KBC_CONFIGROWID")
         unsuccessful_table_name = f"{sf_object}_{operation}_unsuccessful_{config_row_id}.csv"
         return unsuccessful_table_name
 
