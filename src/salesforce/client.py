@@ -226,7 +226,6 @@ class SalesforceClient(HttpClient):
         payload["object"] = sf_object
         payload["contentType"] = "CSV"
 
-        is_query = operation in (Operation.query, Operation.query_all)
         endpoint = f"/services/data/v{self.api_version}/jobs/ingest"
         result = self.post_raw(
             endpoint_path=endpoint,
@@ -255,6 +254,10 @@ class SalesforceClient(HttpClient):
         with open(result_path, 'wb+') as out:
             for chunk in res.iter_content(chunk_size=8192):
                 out.write(chunk)
+
+    def is_job_done(self, job: dict):
+        OUTCOME_STATES = ['JobComplete', 'Failed', 'Aborted']
+        return job['state'] in OUTCOME_STATES
 
     def get_bulk_fetchable_objects(self):
         all_s_objects = self.simple_client.describe()["sobjects"]

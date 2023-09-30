@@ -39,7 +39,7 @@ KEY_USE_HTTP_PROXY_AS_HTTPS = "use_http_proxy_as_https"
 REQUIRED_PARAMETERS = [KEY_USERNAME, KEY_OBJECT, KEY_PASSWORD, KEY_SECURITY_TOKEN, KEY_OPERATION]
 REQUIRED_IMAGE_PARS = []
 
-BATCH_LIMIT = 2500
+BATCH_LIMIT = 1
 LOG_LIMIT = 15
 
 DEFAULT_API_VERSION = "40.0"
@@ -103,12 +103,15 @@ class Component(ComponentBase):
         except BulkApiError as bulk_error:
             raise UserException(bulk_error) from bulk_error
 
+        # TODO: adjust to new structure
         parsed_results, num_success, num_errors = self.parse_results(results)
 
         logging.info(
             f"All data written to salesforce, {operation}ed {num_success} records, {num_errors} errors occurred")
 
         if num_errors > 0:
+            # TODO: adjust to new logic downloading the failed results and adjusting the headers
+            # the filed will be sliced.
             self._process_failures(parsed_results, input_headers, sf_object, operation, num_errors)
         else:
             logging.info("Process was successful")
@@ -157,6 +160,8 @@ class Component(ComponentBase):
                                           is_sandbox=params.get(KEY_SANDBOX))
         except requests.exceptions.ProxyError as e:
             raise UserException(f"Cannot connect to proxy: {e}")
+
+        client.login()
 
         return client
 
@@ -210,23 +215,29 @@ class Component(ComponentBase):
 
     def write_to_salesforce(self, input_file_reader, upsert_field_name, salesforce_client,
                             sf_object, operation, concurrency, assignement_id):
-        results = []
+        upload_jobs = []
         for i, chunk in enumerate(self.get_chunks(input_file_reader, BATCH_LIMIT)):
             logging.info(f"Processing chunk #{i}")
-            job_result = self.process_job(upsert_field_name, salesforce_client, sf_object, operation, concurrency,
+            upload_job = self.upload_data(upsert_field_name, salesforce_client, sf_object, operation, concurrency,
                                           assignement_id, chunk)
-            results.extend(job_result)
-        return results
+            upload_jobs.append(upload_job)
+        finished_jobs = []
+        job_count = len(upload_jobs)
+        while job_count > len(finished_jobs):
+            for job in upload_jobs:
+                actual_job = salesforce_client.get_job_status(job['id'])
+                if salesforce_client.is_job_done(actual_job):
+                    finished_jobs.append(actual_job)
+        return finished_jobs
 
-    def process_job(self, upsert_field_name, salesforce_client, sf_object, operation, concurrency, assignement_id,
+    def upload_data(self, upsert_field_name, salesforce_client, sf_object, operation, concurrency, assignement_id,
                     chunk):
-
-        job = salesforce_client.create_job(sf_object, operation, external_id_name=upsert_field_name,
-                                           contentType='CSV', concurrency=concurrency,
-                                           assignement_id=assignement_id)
-
         csv_iter = CsvDictsAdapter(iter(chunk))
-        return salesforce_client.get_job_result(job, csv_iter)
+        # TODO: figure out how to use dicts CsvDictsAdapter properly
+        job = salesforce_client.create_job_and_upload_data(sf_object, operation, external_id_field=upsert_field_name,
+                                                           assignment_rule_id=assignement_id,
+                                                           input_stream=csv_iter)
+        return job
 
     def write_unsuccessful(self, parsed_results, input_headers, sf_object, operation):
         unsuccessful_table_name = self.get_error_table_name(operation, sf_object)
