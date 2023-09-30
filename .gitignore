@@ -6,7 +6,7 @@ __pycache__/
 .DS_Store
 /example/.project
 /example/.pydevproject
-
+/src/test.py
 # kbc datafolder
 /data
 /venv

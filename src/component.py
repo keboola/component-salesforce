@@ -86,6 +86,7 @@ class Component(ComponentBase):
         input_headers = input_table.columns
         if replace_string:
             input_headers = self.replace_headers(input_headers, replace_string)
+
         if upsert_field_name and upsert_field_name.strip() not in input_headers:
             raise UserException(
                 f"Upsert field name {upsert_field_name} not in input table with headers {input_headers}")
@@ -140,11 +141,20 @@ class Component(ComponentBase):
     @retry(SalesforceAuthenticationFailed, tries=2, delay=5)
     def login_to_salesforce(self, params):
         try:
-            client = SalesforceClient(username=params.get(KEY_USERNAME),
-                                      password=params.get(KEY_PASSWORD),
-                                      security_token=params.get(KEY_SECURITY_TOKEN),
-                                      API_version=params.get(KEY_API_VERSION, DEFAULT_API_VERSION),
-                                      sandbox=params.get(KEY_SANDBOX))
+            if self.configuration.oauth_credentials:
+                # oauth login
+                client = SalesforceClient(consumer_key=self.configuration.oauth_credentials.appKey,
+                                          consumer_secret=self.configuration.oauth_credentials.appSecret,
+                                          refresh_token=self.configuration.oauth_credentials.data['refresh_token'],
+                                          api_version=params.get(KEY_API_VERSION, DEFAULT_API_VERSION),
+                                          is_sandbox=params.get(KEY_SANDBOX))
+            else:
+                client = SalesforceClient(None, None, None,
+                                          legacy_credentials=dict(username=params.get(KEY_USERNAME),
+                                                                  password=params.get(KEY_PASSWORD),
+                                                                  security_token=params.get(KEY_SECURITY_TOKEN)),
+                                          api_version=params.get(KEY_API_VERSION, DEFAULT_API_VERSION),
+                                          is_sandbox=params.get(KEY_SANDBOX))
         except requests.exceptions.ProxyError as e:
             raise UserException(f"Cannot connect to proxy: {e}")
 
