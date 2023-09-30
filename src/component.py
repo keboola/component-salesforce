@@ -174,11 +174,11 @@ class Component(ComponentBase):
         if self.configuration.parameters.get(KEY_FAIL_ON_ERROR):
             raise UserException(
                 f"{num_errors} errors occurred. "
-                f"Additional details are available in the error log table: {error_table}")
+                f"Additional details are available in the error log table: {error_table.name}")
         else:
             logging.warning(f"{num_errors} errors occurred. "
                             "The process is marked as success because the 'Fail on error' parameter is set to false. "
-                            f"Additional details are available in the error log table: {error_table}")
+                            f"Additional details are available in the error log table: {error_table.name}")
 
     @retry(SalesforceAuthenticationFailed, tries=2, delay=5)
     def login_to_salesforce(self):
