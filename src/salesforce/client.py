@@ -1,19 +1,14 @@
 import base64
 import logging
-import warnings
-import xml.etree.ElementTree as ET
 from collections import OrderedDict
 from enum import Enum
 from json import JSONDecodeError
 from typing import Iterable
-from urllib.parse import urlparse
-from keboola.http_client import HttpClient
 
-import backoff as backoff
 import requests
-from requests.auth import AuthBase
+from keboola.http_client import HttpClient
 from salesforce_bulk import SalesforceBulk
-from salesforce_bulk.salesforce_bulk import DEFAULT_API_VERSION, BulkApiError
+from salesforce_bulk.salesforce_bulk import DEFAULT_API_VERSION
 from simple_salesforce import Salesforce
 
 NON_SUPPORTED_BULK_FIELD_TYPES = ["address", "location", "base64", "reference"]
