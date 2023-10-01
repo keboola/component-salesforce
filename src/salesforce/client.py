@@ -1,7 +1,6 @@
 import base64
 import logging
 from collections import OrderedDict
-from enum import Enum
 from json import JSONDecodeError
 from typing import Iterable
 
@@ -10,6 +9,7 @@ from keboola.http_client import HttpClient
 from salesforce_bulk import SalesforceBulk
 from salesforce_bulk.salesforce_bulk import DEFAULT_API_VERSION
 from simple_salesforce import Salesforce
+from simple_salesforce.bulk2 import Operation, ColumnDelimiter, LineEnding
 
 NON_SUPPORTED_BULK_FIELD_TYPES = ["address", "location", "base64", "reference"]
 
@@ -31,49 +31,6 @@ def _backoff_handler(details):
     if 'InvalidSessionId' in str(details['exception']):
         logging.warning('SessionID invalid, trying to re-login.')
         details['args'][0].relogin()
-
-
-class Operation(str, Enum):
-    insert = "insert"
-    upsert = "upsert"
-    update = "update"
-    delete = "delete"
-    hard_delete = "hardDelete"
-    query = "query"
-    query_all = "queryAll"
-
-
-class ColumnDelimiter(str, Enum):
-    BACKQUOTE = "BACKQUOTE"  # (`)
-    CARET = "CARET"  # (^)
-    COMMA = "COMMA"  # (,)
-    PIPE = "PIPE"  # (|)
-    SEMICOLON = "SEMICOLON"  # (;)
-    TAB = "TAB"  # (\t)
-
-
-_delimiter_char = {
-    ColumnDelimiter.BACKQUOTE: "`",
-    ColumnDelimiter.CARET: "^",
-    ColumnDelimiter.COMMA: ",",
-    ColumnDelimiter.PIPE: "|",
-    ColumnDelimiter.SEMICOLON: ";",
-    ColumnDelimiter.TAB: "\t",
-}
-
-
-class LineEnding(str, Enum):
-    LF = "LF"
-    CRLF = "CRLF"
-
-
-_line_ending_char = {LineEnding.LF: "\n", LineEnding.CRLF: "\r\n"}
-
-
-class ResultsType(str, Enum):
-    failed = "failedResults"
-    successful = "successfulResults"
-    unprocessed = "unprocessedRecords"
 
 
 class SalesforceAuthenticationFailed(Exception):
