@@ -5,6 +5,7 @@ import os
 import shutil
 import subprocess
 from math import floor
+from time import sleep
 from typing import Dict, List, Iterator
 
 import requests
@@ -250,6 +251,7 @@ class Component(ComponentBase):
         logging.info(f"Waiting for {job_count} chunks to finish")
         while job_count > len(finished_jobs):
             for job in upload_jobs:
+                sleep(2)
                 actual_job = self.client.get_job_status(job['id'])
                 if self.client.is_job_done(actual_job):
                     logging.info(f'{len(finished_jobs)} chunks finished.')
