@@ -33,19 +33,6 @@
       "default": "Object",
       "propertyOrder": 20
     },
-    "serial_mode": {
-      "title": "Serial mode",
-      "format": "checkbox",
-      "type": "boolean",
-      "propertyOrder": 30,
-      "default": true
-    },
-    "replace_string": {
-      "title": "Replace string",
-      "type": "string",
-      "description": "Set the string that should be replaced for a dot (\".\") in all column names that contain the replace. e.g. with replace string set to __ the column contact__address will be sent to salesforce as contact.address.",
-      "propertyOrder": 40
-    },
     "upsert_field_name": {
       "title": "External ID",
       "type": "string",
