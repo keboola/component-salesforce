@@ -4,7 +4,7 @@ import logging
 import os
 import shutil
 import subprocess
-from math import floor
+from math import floor, ceil
 from time import sleep
 from typing import Dict, List, Iterator
 
@@ -59,7 +59,7 @@ def estimate_chunk_size(csv_path: str) -> int:
     if max_bytes == csv_data_size:
         return num_lines
     else:
-        return floor(num_lines / floor(csv_data_size / max_bytes))
+        return floor(num_lines / ceil(csv_data_size / max_bytes))
 
 
 def skip_first_line(file_path: str) -> list[str]:
