@@ -3,7 +3,6 @@
   "type": "object",
   "required": [
     "operation",
-    "serial_mode",
     "sf_object"
   ],
   "properties": {
@@ -30,7 +29,7 @@
         "Upsert",
         "Delete"
       ],
-      "default": "Object",
+      "default": "Insert",
       "propertyOrder": 20
     },
     "replace_string": {

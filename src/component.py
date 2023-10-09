@@ -363,13 +363,12 @@ class Component(ComponentBase):
         readable name of the object, and 'value' is the name of the object you can use to query the object
 
         """
-        params = self.configuration.parameters
-        salesforce_client = self.get_salesforce_client(params)
-        return salesforce_client.get_bulk_fetchable_objects()
+        self.get_salesforce_client()
+        return self.client.get_bulk_fetchable_objects()
 
-    def get_salesforce_client(self, params) -> SalesforceClient:
+    def get_salesforce_client(self) -> SalesforceClient:
         try:
-            return self.login_to_salesforce(params)
+            return self.login_to_salesforce()
         except SalesforceAuthenticationFailed as e:
             raise UserException("Authentication Failed : recheck your username, password, and security token ") from e
 
@@ -380,7 +379,7 @@ class Component(ComponentBase):
         """
         params = self.configuration.parameters
         self.set_proxy(params)
-        self.get_salesforce_client(params)
+        self.get_salesforce_client()
 
 
 if __name__ == "__main__":
