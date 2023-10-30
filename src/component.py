@@ -125,8 +125,6 @@ class Component(ComponentBase):
 
         params = self.configuration.parameters
 
-        self.set_proxy(params)
-
         input_table = self.get_input_table()
 
         self.print_failed_to_log = params.get(KEY_PRINT_FAILED_TO_LOG, False)
@@ -222,6 +220,7 @@ class Component(ComponentBase):
 
     @retry(SalesforceAuthenticationFailed, tries=2, delay=5)
     def login_to_salesforce(self):
+        self.set_proxy()
         try:
             self.client.login()
         except requests.exceptions.ProxyError as e:
@@ -356,9 +355,9 @@ class Component(ComponentBase):
             if i >= LOG_LIMIT - 1:
                 break
 
-    def set_proxy(self, params: dict) -> None:
+    def set_proxy(self) -> None:
         """Sets proxy if defined"""
-        proxy_config = params.get(KEY_PROXY, {})
+        proxy_config = self.configuration.parameters.get(KEY_PROXY, {})
         if proxy_config.get(KEY_USE_PROXY):
             self._set_proxy(proxy_config)
 
@@ -406,6 +405,7 @@ class Component(ComponentBase):
         return self.client.get_bulk_fetchable_objects()
 
     def get_salesforce_client(self) -> SalesforceClient:
+
         try:
             return self.login_to_salesforce()
         except SalesforceAuthenticationFailed as e:
@@ -416,8 +416,6 @@ class Component(ComponentBase):
         """
         Tries to log into Salesforce, raises user exception if login params are incorrect
         """
-        params = self.configuration.parameters
-        self.set_proxy(params)
         self.get_salesforce_client()
 
 
