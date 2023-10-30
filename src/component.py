@@ -4,6 +4,7 @@ import logging
 import os
 import shutil
 import subprocess
+from enum import Enum
 from math import floor, ceil
 from time import sleep
 from typing import Dict, List, Iterator
@@ -21,6 +22,10 @@ from salesforce.client import SalesforceClient, LineEnding
 KEY_USERNAME = "username"
 KEY_PASSWORD = "#password"
 KEY_SECURITY_TOKEN = "#security_token"
+
+KEY_LOGIN_METHOD = "login_method"
+KEY_CONSUMER_KEY = "consumer_key"
+KEY_CONSUMER_SECRET = "#consumer_secret"
 KEY_API_VERSION = "api_version"
 KEY_SANDBOX = "sandbox"
 
@@ -41,13 +46,23 @@ KEY_PROXY_USERNAME = "username"
 KEY_PROXY_PASSWORD = "#password"
 KEY_USE_HTTP_PROXY_AS_HTTPS = "use_http_proxy_as_https"
 
-REQUIRED_PARAMETERS = [KEY_USERNAME, KEY_OBJECT, KEY_PASSWORD, KEY_SECURITY_TOKEN, KEY_OPERATION]
+REQUIRED_PARAMETERS = [KEY_OBJECT, KEY_OPERATION]
 REQUIRED_IMAGE_PARS = []
 
 LOG_LIMIT = 15
 MAX_INGEST_JOB_FILE_SIZE = 100 * 1024 * 1024
 
 DEFAULT_API_VERSION = "40.0"
+
+
+class LoginType(str, Enum):
+    SECURITY_TOKEN_LOGIN = "security_token"
+    CONNECTED_APP_OAUTH_CC = "connected_app_oauth_cc"
+    CONNECTED_APP_OAUTH_AUTH_CODE = "connected_app_oauth_auth_code"
+
+    @classmethod
+    def list(cls):
+        return list(map(lambda c: c.value, cls))
 
 
 def estimate_chunk_size(csv_path: str) -> int:
@@ -78,18 +93,27 @@ class Component(ComponentBase):
         super().__init__()
         self.print_failed_to_log = False
         params = self.configuration.parameters
-        if self.configuration.oauth_credentials:
+        login_method = self._get_login_method()
+        if login_method == LoginType.CONNECTED_APP_OAUTH_AUTH_CODE:
             # oauth login
             self.client = SalesforceClient(consumer_key=self.configuration.oauth_credentials.appKey,
                                            consumer_secret=self.configuration.oauth_credentials.appSecret,
                                            refresh_token=self.configuration.oauth_credentials.data['refresh_token'],
                                            api_version=params.get(KEY_API_VERSION, DEFAULT_API_VERSION),
                                            is_sandbox=params.get(KEY_SANDBOX))
-        else:
+        elif login_method == LoginType.SECURITY_TOKEN_LOGIN:
+
+            self.validate_configuration_parameters([KEY_USERNAME, KEY_PASSWORD, KEY_SECURITY_TOKEN])
             self.client = SalesforceClient(None, None, None,
                                            legacy_credentials=dict(username=params.get(KEY_USERNAME),
                                                                    password=params.get(KEY_PASSWORD),
                                                                    security_token=params.get(KEY_SECURITY_TOKEN)),
+                                           api_version=params.get(KEY_API_VERSION, DEFAULT_API_VERSION),
+                                           is_sandbox=params.get(KEY_SANDBOX))
+
+        elif login_method == LoginType.CONNECTED_APP_OAUTH_CC:
+            self.validate_configuration_parameters([KEY_CONSUMER_KEY, KEY_CONSUMER_SECRET])
+            self.client = SalesforceClient(params[KEY_CONSUMER_KEY], params[KEY_CONSUMER_SECRET], None,
                                            api_version=params.get(KEY_API_VERSION, DEFAULT_API_VERSION),
                                            is_sandbox=params.get(KEY_SANDBOX))
 
@@ -156,6 +180,19 @@ class Component(ComponentBase):
             self._process_failures(failed_jobs, input_headers, sf_object, operation, num_errors)
         else:
             logging.info("Process was successful")
+
+    def _get_login_method(self) -> LoginType:
+        if self.configuration.oauth_credentials:
+
+            login_type_name = 'connected_app_oauth_auth_code'
+        else:
+            login_type_name = self.configuration.parameters.get(KEY_LOGIN_METHOD, 'security_token')
+
+        try:
+            return LoginType(login_type_name)
+        except ValueError as val_err:
+            raise UserException(
+                f"'{login_type_name}' is not a valid Login Type. Enter one of : {LoginType.list()}") from val_err
 
     def _process_failures(self, parsed_results, input_headers, sf_object, operation, num_errors: int):
         """
