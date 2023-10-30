@@ -39,7 +39,7 @@ class SalesforceAuthenticationFailed(Exception):
 
 class SalesforceClient(HttpClient):
     def __init__(self, consumer_key: str, consumer_secret: str, refresh_token: str, is_sandbox: bool = False,
-                 api_version=DEFAULT_API_VERSION, legacy_credentials: dict = None):
+                 api_version=DEFAULT_API_VERSION, legacy_credentials: dict = None, domain=None):
 
         super().__init__('NONE', max_retries=3)
 
@@ -51,14 +51,14 @@ class SalesforceClient(HttpClient):
         self.is_logged_in = False
         self.api_version = api_version
         self.simple_client: Salesforce
+        self.domain = domain
 
     def login(self):
-        if not self.is_sandbox:
-            domain = 'login'
-        else:
-            domain = 'test'
+        if not self.domain:
+            self.domain = 'login' if not self.is_sandbox else 'test'
 
         if self._legacy_credentials:
+
             access_token, instance_url = SalesforceBulk.login_to_salesforce(self._legacy_credentials['username'],
                                                                             self._legacy_credentials['password'],
                                                                             sandbox=self.is_sandbox,
@@ -67,42 +67,7 @@ class SalesforceClient(HttpClient):
                                                                             API_version=self.api_version)
 
         else:
-            token_data = {'grant_type': 'refresh_token',
-                          'refresh_token': self._refresh_token}
-            authorization = f'{self._consumer_key}:{self._consumer_secret}'
-            encoded = base64.b64encode(authorization.encode()).decode()
-            headers = {
-                'Authorization': f'Basic {encoded}'
-            }
-
-            token_url = f'https://{domain}.salesforce.com/services/oauth2/token'
-            response = requests.post(token_url, token_data, headers=headers)
-
-            try:
-                json_response = response.json()
-            except JSONDecodeError as exc:
-                raise SalesforceAuthenticationFailed(
-                    response.status_code, response.text
-                ) from exc
-
-            if response.status_code != 200:
-                except_code = json_response.get('error')
-                except_msg = json_response.get('error_description')
-                if except_msg == "user hasn't approved this consumer":
-                    auth_url = f'https://{domain}.salesforce.com/services/oauth2/' \
-                               'authorize?response_type=code&client_id=' \
-                               f'{self._consumer_key}&redirect_uri=<approved URI>'
-                    except_msg += f"""\n
-                  If your connected app policy is set to "All users may
-                  self-authorize", you may need to authorize this
-                  application first. Browse to
-                  {auth_url}
-                  in order to Allow Access. Check first to ensure you have a valid
-                  <approved URI>."""
-                raise SalesforceAuthenticationFailed(except_code, except_msg)
-
-            access_token = json_response.get('access_token')
-            instance_url = json_response.get('instance_url')
+            instance_url, access_token = self._login_oauth(self.domain)
 
         sf_instance = instance_url.replace(
             'http://', '').replace(
@@ -117,7 +82,51 @@ class SalesforceClient(HttpClient):
         self.update_auth_header({"Authorization": f"Bearer {access_token}"})
 
         # init simple client
-        self._init_simple_client(access_token, domain)
+        self._init_simple_client(access_token, self.domain)
+
+    def _login_oauth(self, domain: str):
+        if self._refresh_token:
+            token_data = {'grant_type': 'refresh_token',
+                          'refresh_token': self._refresh_token}
+            token_url = f'https://{domain}.salesforce.com/services/oauth2/token'
+
+        else:
+            token_data = {'grant_type': 'client_credentials'}
+            token_url = f'https://{domain}.my.salesforce.com/services/oauth2/token'
+
+        authorization = f'{self._consumer_key}:{self._consumer_secret}'
+        encoded = base64.b64encode(authorization.encode()).decode()
+        headers = {
+            'Authorization': f'Basic {encoded}'
+        }
+        response = requests.post(token_url, token_data, headers=headers)
+
+        try:
+            json_response = response.json()
+        except JSONDecodeError as exc:
+            raise SalesforceAuthenticationFailed(
+                response.status_code, response.text
+            ) from exc
+
+        if response.status_code != 200:
+            except_code = json_response.get('error')
+            except_msg = json_response.get('error_description')
+            if except_msg == "user hasn't approved this consumer":
+                auth_url = f'https://{domain}.salesforce.com/services/oauth2/' \
+                           'authorize?response_type=code&client_id=' \
+                           f'{self._consumer_key}&redirect_uri=<approved URI>'
+                except_msg += f"""\n
+                          If your connected app policy is set to "All users may
+                          self-authorize", you may need to authorize this
+                          application first. Browse to
+                          {auth_url}
+                          in order to Allow Access. Check first to ensure you have a valid
+                          <approved URI>."""
+            raise SalesforceAuthenticationFailed(except_code, except_msg)
+
+        access_token = json_response.get('access_token')
+        instance_url = json_response.get('instance_url')
+        return instance_url, access_token
 
     def _init_simple_client(self, access_token: str, domain: str):
         instance_url = self.base_url
