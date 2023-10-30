@@ -66,6 +66,17 @@
       "description": "Salesforce security token",
       "propertyOrder": 30
     },
+    "domain": {
+      "type": "string",
+      "title": "SF Domain",
+      "options": {
+        "dependencies": {
+          "login_method": "connected_app_oauth_cc"
+        }
+      },
+      "description": "To find your My Domain URL, login to Salesforce and from Setup, in the Quick Find box, enter My Domain, and then select My Domain.",
+      "propertyOrder": 33
+    },
     "consumer_key": {
       "type": "string",
       "title": "Consumer Key",

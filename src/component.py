@@ -26,6 +26,7 @@ KEY_SECURITY_TOKEN = "#security_token"
 KEY_LOGIN_METHOD = "login_method"
 KEY_CONSUMER_KEY = "consumer_key"
 KEY_CONSUMER_SECRET = "#consumer_secret"
+KEY_DOMAIN = "domain"
 KEY_API_VERSION = "api_version"
 KEY_SANDBOX = "sandbox"
 
@@ -112,10 +113,11 @@ class Component(ComponentBase):
                                            is_sandbox=params.get(KEY_SANDBOX))
 
         elif login_method == LoginType.CONNECTED_APP_OAUTH_CC:
-            self.validate_configuration_parameters([KEY_CONSUMER_KEY, KEY_CONSUMER_SECRET])
+            self.validate_configuration_parameters([KEY_CONSUMER_KEY, KEY_CONSUMER_SECRET, KEY_DOMAIN])
             self.client = SalesforceClient(params[KEY_CONSUMER_KEY], params[KEY_CONSUMER_SECRET], None,
                                            api_version=params.get(KEY_API_VERSION, DEFAULT_API_VERSION),
-                                           is_sandbox=params.get(KEY_SANDBOX))
+                                           is_sandbox=params.get(KEY_SANDBOX),
+                                           domain=params[KEY_DOMAIN])
 
     def run(self):
         self.validate_configuration_parameters(REQUIRED_PARAMETERS)
