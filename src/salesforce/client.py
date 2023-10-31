@@ -54,6 +54,7 @@ class SalesforceClient(HttpClient):
         self.domain = domain
 
     def login(self):
+        # present only for client credentials flow
         if not self.domain:
             self.domain = 'login' if not self.is_sandbox else 'test'
 
@@ -92,7 +93,7 @@ class SalesforceClient(HttpClient):
 
         else:
             token_data = {'grant_type': 'client_credentials'}
-            token_url = f'https://{domain}.my.salesforce.com/services/oauth2/token'
+            token_url = f'https://{domain}/services/oauth2/token'
 
         authorization = f'{self._consumer_key}:{self._consumer_secret}'
         encoded = base64.b64encode(authorization.encode()).decode()
