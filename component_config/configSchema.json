@@ -68,8 +68,11 @@
     },
     "domain": {
       "type": "string",
-      "title": "SF Domain",
+      "title": "My Domain URL",
       "options": {
+        "inputAttributes": {
+          "placeholder": "my-domain.sandbox.my.salesforce.com"
+        },
         "dependencies": {
           "login_method": "connected_app_oauth_cc"
         }
@@ -105,6 +108,11 @@
       "title": "Sandbox",
       "format": "checkbox",
       "description": "Download records from sandbox instead of the production environment.",
+      "options": {
+        "dependencies": {
+          "login_method": "security_token"
+        }
+      },
       "propertyOrder": 40
     },
     "api_version": {
