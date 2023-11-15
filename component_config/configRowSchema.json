@@ -55,21 +55,19 @@
       "description": "ID of Lead <a href =\"https://help.salesforce.com/s/articleView?id=sf.customize_leadrules.htm&language=en_US&type=5\">Assignment rule</a> you want to run after import. <a href=\"https://help.salesforce.com/s/articleView?id=000381858&type=1\">See how to find it</a>.",
       "propertyOrder": 60
     },
-    "fail_on_error": {
-      "title": "Fail on error",
-      "format": "checkbox",
-      "description": "When checked, the component job will fail if any error occurs. If unchecked, the component will be successful if some errors occur.",
-      "type": "boolean",
-      "propertyOrder": 80,
-      "default": true
-    },
-    "print_failed_to_log": {
-      "title": "Print Failed to log",
-      "format": "checkbox",
-      "description": "If set to true, the component will log all failed operations into the job's log.",
-      "type": "boolean",
-      "propertyOrder": 90,
-      "default": false
+    "advanced_options": {
+      "title": "Additional options",
+      "type": "object",
+      "propertyOrder": 65,
+      "properties": {
+        "serial_mode": {
+          "title": "Serial Mode",
+          "description": "Run batches in serial mode. This is useful to prevent locks on objects, but will increase run time significantly.",
+          "type": "boolean",
+          "default": false,
+          "propertyOrder": 1
+        }
+      }
     }
   }
 }
