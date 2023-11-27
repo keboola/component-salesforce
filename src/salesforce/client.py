@@ -1,15 +1,19 @@
 import base64
 import logging
+import xml.etree.ElementTree as ET
 from collections import OrderedDict
 from json import JSONDecodeError
 from typing import Iterable
 
+import backoff
 import requests
+import salesforce_bulk
 from keboola.http_client import HttpClient
 from salesforce_bulk import SalesforceBulk
-from salesforce_bulk.salesforce_bulk import DEFAULT_API_VERSION
+from salesforce_bulk.salesforce_bulk import DEFAULT_API_VERSION, BulkApiError
 from simple_salesforce import Salesforce
 from simple_salesforce.bulk2 import Operation, ColumnDelimiter, LineEnding
+from six import text_type
 
 NON_SUPPORTED_BULK_FIELD_TYPES = ["address", "location", "base64", "reference"]
 
@@ -51,6 +55,7 @@ class SalesforceClient(HttpClient):
         self.is_logged_in = False
         self.api_version = api_version
         self.simple_client: Salesforce
+        self.bulk1_client: salesforce_bulk.SalesforceBulk
         self.domain = domain
 
     def login(self):
@@ -84,6 +89,7 @@ class SalesforceClient(HttpClient):
 
         # init simple client
         self._init_simple_client(access_token, self.domain)
+        self._init_bulk1_client(access_token, sf_instance)
 
     def _login_oauth(self, domain: str):
         if self._refresh_token:
@@ -133,6 +139,11 @@ class SalesforceClient(HttpClient):
         instance_url = self.base_url
         self.simple_client = Salesforce(session_id=access_token, instance_url=instance_url,
                                         domain=domain, version=self.api_version)
+
+    def _init_bulk1_client(self, access_token: str, instance_url: str):
+        instance_url = self.base_url
+        self.bulk1_client = LegacyBulkClient(session_id=access_token, instance_url=instance_url,
+                                             api_version=self.api_version)
 
     def create_job_and_upload_data(self, sf_object: str,
                                    operation: Operation,
@@ -230,3 +241,65 @@ class SalesforceClient(HttpClient):
             if sf_object.get('queryable') and not sf_object.get('name') in OBJECTS_NOT_SUPPORTED_BY_BULK:
                 to_fetch.append({"label": sf_object.get('label'), 'value': sf_object.get('name')})
         return to_fetch
+
+    @backoff.on_exception(backoff.expo, BulkApiError, max_tries=3, on_backoff=_backoff_handler)
+    def create_job_v1(self, object_name=None, operation=None, contentType='CSV',
+                      concurrency=None, external_id_name=None, pk_chunking=False, assignement_id=None):
+        assert (object_name is not None)
+        assert (operation is not None)
+
+        extra_headers = {}
+        if pk_chunking:
+            if pk_chunking is True:
+                pk_chunking = u'true'
+            elif isinstance(pk_chunking, int):
+                pk_chunking = u'chunkSize=%d;' % pk_chunking
+            else:
+                pk_chunking = text_type(pk_chunking)
+
+            extra_headers['Sforce-Enable-PKChunking'] = pk_chunking
+
+        if assignement_id:
+            extra_headers['assignmentRuleId'] = assignement_id
+
+        doc = self.bulk1_client.create_job_doc(object_name=object_name,
+                                               operation=operation,
+                                               contentType=contentType,
+                                               concurrency=concurrency,
+                                               external_id_name=external_id_name)
+
+        resp = requests.post(self.bulk1_client.endpoint + "/job",
+                             headers=self.bulk1_client.headers(extra_headers),
+                             data=doc)
+        self.bulk1_client.check_status(resp)
+
+        tree = ET.fromstring(resp.content)
+        job_id = tree.findtext("{%s}id" % self.bulk1_client.jobNS)
+        self.bulk1_client.jobs[job_id] = job_id
+        self.bulk1_client.job_content_types[job_id] = contentType
+
+        return job_id
+
+    @backoff.on_exception(backoff.expo, BulkApiError, max_tries=3, on_backoff=_backoff_handler)
+    def get_job_result_v1(self, job, csv_iter):
+        batch = self.bulk1_client.post_batch(job, csv_iter)
+        self.bulk1_client.wait_for_batch(job, batch)
+        self.bulk1_client.close_job(job)
+        return self.bulk1_client.get_batch_results(batch)
+
+
+class LegacyBulkClient(SalesforceBulk):
+    def __init__(self, session_id: str, instance_url: str, api_version: str):
+
+        if instance_url[0:4] == 'http':
+            self.endpoint = instance_url
+        else:
+            self.endpoint = "https://" + instance_url
+        self.endpoint += "/services/async/%s" % api_version
+        self.sessionId = session_id
+        self.jobNS = 'http://www.force.com/2009/06/asyncapi/dataload'
+        self.jobs = {}  # dict of job_id => job_id
+        self.batches = {}  # dict of batch_id => job_id
+        self.job_content_types = {}  # dict of job_id => contentType
+        self.batch_statuses = {}
+        self.API_version = api_version
