@@ -281,7 +281,7 @@ class Component(ComponentBase):
 
         input_file_reader = self.get_input_file_data(input_table)
 
-        chunk_size = 2500 if serial_mode else estimate_chunk_size(input_table.full_path)
+        chunk_size = 10000 if serial_mode else estimate_chunk_size(input_table.full_path)
         chunk_generator = self.get_chunks(input_file_reader, chunk_size)
         if serial_mode:
             logging.warning("Running in serial mode (fall back to Bulk API v1")
