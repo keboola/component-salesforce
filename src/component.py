@@ -315,13 +315,15 @@ class Component(ComponentBase):
     def upload_data_serial(self, upsert_field_name, sf_object, operation, assignement_id, chunks: Iterable):
 
         results = []
+        job = self.client.create_job_v1(sf_object, operation, external_id_name=upsert_field_name,
+                                        contentType='CSV', concurrency='Serial',
+                                        assignement_id=assignement_id)
         for i, chunk in enumerate(chunks):
-            logging.info(f"Processing chunk #{i}")
-            job = self.client.create_job_v1(sf_object, operation, external_id_name=upsert_field_name,
-                                            contentType='CSV', concurrency='Serial',
-                                            assignement_id=assignement_id)
+            logging.info(f"Processing chunk #{i} (size {len(chunk)})")
             csv_iter = CsvDictsAdapter(iter(chunk))
-            results.append(self.client.get_job_result_v1(job, csv_iter))
+            results.append(self.client.get_batch_result_v1(job, csv_iter))
+
+        self.client.close_job_v1(job)
         return results
 
     def upload_data(self, upsert_field_name, sf_object, operation, assignement_id, chunk):

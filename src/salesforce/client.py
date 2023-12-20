@@ -280,11 +280,13 @@ class SalesforceClient(HttpClient):
 
         return job_id
 
+    def close_job_v1(self, job_id):
+        self.bulk1_client.close_job(job_id)
+
     @backoff.on_exception(backoff.expo, BulkApiError, max_tries=4, on_backoff=_backoff_handler)
-    def get_job_result_v1(self, job, csv_iter):
+    def get_batch_result_v1(self, job, csv_iter):
         batch = self.bulk1_client.post_batch(job, csv_iter)
         self.retry_wait_for_batch_v1(job, batch)
-        self.bulk1_client.close_job(job)
         return self.bulk1_client.get_batch_results(batch)
 
     @backoff.on_exception(backoff.expo, Exception, max_tries=4, on_backoff=_backoff_handler)
