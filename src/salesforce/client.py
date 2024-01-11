@@ -285,12 +285,16 @@ class SalesforceClient(HttpClient):
 
     @backoff.on_exception(backoff.expo, BulkApiError, max_tries=4, on_backoff=_backoff_handler)
     def get_batch_result_v1(self, job, csv_iter):
-        batch = self.bulk1_client.post_batch(job, csv_iter)
+        batch = self.retry_post_batch_v1(job, csv_iter)
         try:
             self.retry_wait_for_batch_v1(job, batch)
         except BulkApiError as e:
             logging.warning(f"Batch ID '{batch}' failed: {e}")
         return self.bulk1_client.get_batch_results(batch)
+
+    @backoff.on_exception(backoff.expo, ConnectionError, max_tries=3, on_backoff=_backoff_handler)
+    def retry_post_batch_v1(self, job, csv_iter):
+        return self.bulk1_client.post_batch(job, csv_iter)
 
     @backoff.on_exception(backoff.expo, Exception, max_tries=3, on_backoff=_backoff_handler)
     def retry_wait_for_batch_v1(self, job, batch):
