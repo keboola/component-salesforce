@@ -220,8 +220,8 @@ class SalesforceClient(HttpClient):
         endpoint = f'/services/data/v{self.api_version}/jobs/ingest/{job_id}'
         return self.get(endpoint)
 
-    def download_failed_results(self, job_id: str, result_path: str):
-        endpoint = f'/services/data/v{self.api_version}/jobs/ingest/{job_id}/failedResults'
+    def download_results(self, job_id: str, result_path: str, results_type: str):
+        endpoint = f'/services/data/v{self.api_version}/jobs/ingest/{job_id}/{results_type}'
         res = self.get_raw(endpoint, stream=True)
 
         with open(result_path, 'wb+') as out:
