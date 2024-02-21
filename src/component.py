@@ -421,7 +421,6 @@ class Component(ComponentBase):
             in_file_reader = self.get_input_file_data(self.get_input_table())
             for i, row in enumerate(in_file_reader):
                 if parsed_results[i].success == "true":
-                    row = row
                     row["sf__Id"] = parsed_results[i].id
                     row["sf__Created"] = parsed_results[i].created
                     writer.writerow(row)
@@ -449,8 +448,7 @@ class Component(ComponentBase):
             self.client.download_results(job['id'], file_path, "successfulResults")
             header = skip_first_line(file_path)
 
-        fieldnames = header
-        successful_table.columns = fieldnames
+        successful_table.columns = header
 
         # TODO: remove when write_always added to the library
         # self.write_manifest(unsuccessful_table)
@@ -474,8 +472,8 @@ class Component(ComponentBase):
 
     def get_success_table_name(self, operation, sf_object):
         config_row_id = os.environ.get("KBC_CONFIGROWID", "KBC_CONFIGROWID")
-        unsuccessful_table_name = f"{sf_object}_{operation}_successful_{config_row_id}.csv"
-        return unsuccessful_table_name
+        successful_table_name = f"{sf_object}_{operation}_successful_{config_row_id}.csv"
+        return successful_table_name
 
     def set_proxy(self) -> None:
         """Sets proxy if defined"""
