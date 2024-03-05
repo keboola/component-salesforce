@@ -209,6 +209,8 @@ class SalesforceClient(HttpClient):
             endpoint_path=endpoint,
             json=payload,
         )
+        if result.status_code >= 300:
+            raise BulkApiError(result.text, result.status_code)
         return result.json(object_pairs_hook=OrderedDict)
 
     def upload_data(self, content_url: str, input_stream: Iterable):
