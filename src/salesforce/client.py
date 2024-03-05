@@ -176,6 +176,7 @@ class SalesforceClient(HttpClient):
                                      line_ending,
                                      external_id_field,
                                      assignment_rule_id)
+        logging.debug(job)
         self.upload_data(job['contentUrl'], input_stream)
         self.mark_upload_job_complete(job_id=job['id'])
         return self.get_job_status(job['id'])
@@ -246,7 +247,7 @@ class SalesforceClient(HttpClient):
                 to_fetch.append({"label": sf_object.get('label'), 'value': sf_object.get('name')})
         return to_fetch
 
-    @backoff.on_exception(backoff.expo, BulkApiError, max_tries=MAX_RETRIES, on_backoff=_backoff_handler)
+    @backoff.on_exception(backoff.expo, (SSLError, ConnectionError), max_tries=MAX_RETRIES, on_backoff=_backoff_handler)
     def create_job_v1(self, object_name=None, operation=None, contentType='CSV',
                       concurrency=None, external_id_name=None, pk_chunking=False, assignement_id=None):
         assert (object_name is not None)
@@ -295,7 +296,7 @@ class SalesforceClient(HttpClient):
             logging.warning(f"Batch ID '{batch}' failed: {e}")
         return self.bulk1_client.get_batch_results(batch)
 
-    @backoff.on_exception(backoff.expo, ConnectionError, max_tries=MAX_RETRIES, on_backoff=_backoff_handler)
+    @backoff.on_exception(backoff.expo, (SSLError, ConnectionError), max_tries=MAX_RETRIES, on_backoff=_backoff_handler)
     def retry_post_batch_v1(self, job, csv_iter):
         return self.bulk1_client.post_batch(job, csv_iter)
 
