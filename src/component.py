@@ -287,14 +287,14 @@ class Component(ComponentBase):
                             sf_object, operation, assignement_id, serial_mode=False):
 
         input_file_reader = self.get_input_file_data(input_table)
-        serial_chunk_size = self.configuration.parameters.get(KEY_ADVANCED_OPTIONS, {}).get('batch_size', None)
+        batch_size_override = self.configuration.parameters.get(KEY_ADVANCED_OPTIONS, {}).get('batch_size', None)
 
         if serial_mode:
-            chunk_size = serial_chunk_size or 2500
+            chunk_size = batch_size_override or 2500
         else:
-            chunk_size = serial_chunk_size or estimate_chunk_size(input_table.full_path)
+            chunk_size = batch_size_override or estimate_chunk_size(input_table.full_path)
 
-        logging.info(f'Batch size set to: {serial_chunk_size:,}')
+        logging.info(f'Batch size set to: {chunk_size:,}')
         chunk_generator = self.get_chunks(input_file_reader, chunk_size)
         if serial_mode:
             logging.warning("Running in serial mode (fall back to Bulk API v1")
