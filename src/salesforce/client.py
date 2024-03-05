@@ -29,6 +29,8 @@ OBJECTS_NOT_SUPPORTED_BY_BULK = ["AccountFeed", "AssetFeed", "AccountHistory", "
                                  "ServiceAppointmentStatus", "SolutionStatus", "TaskPriority", "TaskStatus",
                                  "TaskWhoRelation", "UserRecordAccess", "WorkOrderLineItemStatus", "WorkOrderStatus"]
 
+MAX_RETRIES = 10
+
 
 def _backoff_handler(details):
     # this should never happen, but if it does retry login
@@ -45,7 +47,7 @@ class SalesforceClient(HttpClient):
     def __init__(self, consumer_key: str, consumer_secret: str, refresh_token: str, is_sandbox: bool = False,
                  api_version=DEFAULT_API_VERSION, legacy_credentials: dict = None, domain=None):
 
-        super().__init__('NONE', max_retries=3)
+        super().__init__('NONE', max_retries=MAX_RETRIES)
 
         self._legacy_credentials = legacy_credentials
         self.is_sandbox = is_sandbox
@@ -57,6 +59,7 @@ class SalesforceClient(HttpClient):
         self.simple_client: Salesforce
         self.bulk1_client: salesforce_bulk.SalesforceBulk
         self.domain = domain
+        self._max_retries = 3
 
     def login(self):
         # present only for client credentials flow
@@ -242,7 +245,7 @@ class SalesforceClient(HttpClient):
                 to_fetch.append({"label": sf_object.get('label'), 'value': sf_object.get('name')})
         return to_fetch
 
-    @backoff.on_exception(backoff.expo, BulkApiError, max_tries=3, on_backoff=_backoff_handler)
+    @backoff.on_exception(backoff.expo, BulkApiError, max_retries=MAX_RETRIES, on_backoff=_backoff_handler)
     def create_job_v1(self, object_name=None, operation=None, contentType='CSV',
                       concurrency=None, external_id_name=None, pk_chunking=False, assignement_id=None):
         assert (object_name is not None)
@@ -291,13 +294,21 @@ class SalesforceClient(HttpClient):
             logging.warning(f"Batch ID '{batch}' failed: {e}")
         return self.bulk1_client.get_batch_results(batch)
 
-    @backoff.on_exception(backoff.expo, ConnectionError, max_tries=3, on_backoff=_backoff_handler)
+    @backoff.on_exception(backoff.expo, ConnectionError, max_retries=MAX_RETRIES, on_backoff=_backoff_handler)
     def retry_post_batch_v1(self, job, csv_iter):
         return self.bulk1_client.post_batch(job, csv_iter)
 
-    @backoff.on_exception(backoff.expo, Exception, max_tries=3, on_backoff=_backoff_handler)
+    @backoff.on_exception(backoff.expo, Exception, max_retries=MAX_RETRIES, on_backoff=_backoff_handler)
     def retry_wait_for_batch_v1(self, job, batch):
         self.bulk1_client.wait_for_batch(job, batch)
+
+    @property
+    def max_retries(self) -> int:
+        return self._max_retries
+
+    @max_retries.setter
+    def max_retries(self, value: int):
+        self._max_retries = value
 
 
 class LegacyBulkClient(SalesforceBulk):
