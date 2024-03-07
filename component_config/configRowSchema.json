@@ -64,20 +64,60 @@
           "title": "Serial Mode",
           "description": "Run batches in serial mode. This is useful to prevent locks on objects, but will increase run time significantly.",
           "type": "boolean",
+          "required": true,
           "default": false,
           "propertyOrder": 1
         },
-        "batch_size": {
-          "title": "Batch Size",
-          "description": "Batch size in serial mode (max 10 000). Change this to lower value if you experience connection errors.",
-          "type": "integer",
-          "minimum": 1,
-          "maximum": 10000,
-          "default": 2500,
-          "propertyOrder": 1,
+        "override_batch_size": {
+          "title": "Batch Size override",
+          "description": "Toggle if you wish to override the batch size. Otherwise, the batch size will be estimated based on the data size. Manual setup of batch size is not recommended.",
+          "type": "boolean",
+          "format": "checkbox",
+          "default": false,
+          "required": true,
+          "propertyOrder": 3,
           "options": {
             "dependencies": {
-              "serial_mode": true
+              "serial_mode": false
+            }
+          }
+        },
+        "batch_size": {
+          "title": "Batch Size",
+          "description": "Batch size. In serial mode (max 10 000), in standard mode the limit is 100MB. Change this to lower value if you experience connection errors. It is not recommended",
+          "type": "integer",
+          "minimum": 1,
+          "default": 2500,
+          "propertyOrder": 15
+        }
+      },
+      "if": {
+        "properties": {
+          "serial_mode": {
+            "const": true
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "batch_size": {
+            "maximum": 10000,
+            "options": {
+              "dependencies": {
+                "serial_mode": true
+              }
+            }
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "batch_size": {
+            "maximum": 1000000000,
+            "options": {
+              "dependencies": {
+                "override_batch_size": true
+              }
             }
           }
         }
