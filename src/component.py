@@ -214,7 +214,7 @@ class Component(ComponentBase):
                                               assignement_id, chunk)
                 results.extend(job_result)
             except Exception as e:
-                results.extend([UploadResult('', 'false', 'unknown', e) for _ in chunk])
+                results.extend([UploadResult('', 'false', 'unknown', f'CONNECTION - {e}') for _ in chunk])
                 break
         return results
 
