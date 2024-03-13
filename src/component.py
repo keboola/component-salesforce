@@ -8,7 +8,7 @@ import requests
 from keboola.component.base import ComponentBase, sync_action
 from keboola.component.exceptions import UserException
 from retry import retry
-from salesforce_bulk import CsvDictsAdapter, BulkApiError
+from salesforce_bulk import CsvDictsAdapter, BulkApiError, UploadResult
 from simple_salesforce.exceptions import SalesforceAuthenticationFailed
 
 from salesforce.client import SalesforceClient
@@ -39,7 +39,8 @@ KEY_USE_HTTP_PROXY_AS_HTTPS = "use_http_proxy_as_https"
 REQUIRED_PARAMETERS = [KEY_USERNAME, KEY_OBJECT, KEY_PASSWORD, KEY_SECURITY_TOKEN, KEY_OPERATION]
 REQUIRED_IMAGE_PARS = []
 
-BATCH_LIMIT = 2500
+# BATCH_LIMIT = 2500
+BATCH_LIMIT = 5
 LOG_LIMIT = 15
 
 DEFAULT_API_VERSION = "40.0"
@@ -62,10 +63,7 @@ class Component(ComponentBase):
 
         self.print_failed_to_log = params.get(KEY_PRINT_FAILED_TO_LOG, False)
 
-        try:
-            salesforce_client = self.login_to_salesforce(params)
-        except SalesforceAuthenticationFailed as e:
-            raise UserException("Authentication Failed : recheck your username, password, and security token ") from e
+        salesforce_client = self.get_salesforce_client(params)
 
         sf_object = params.get(KEY_OBJECT)
         operation = params.get(KEY_OPERATION).lower()
@@ -108,16 +106,17 @@ class Component(ComponentBase):
             f"All data written to salesforce, {operation}ed {num_success} records, {num_errors} errors occurred")
 
         if num_errors > 0:
-            self._process_failures(parsed_results, input_headers, sf_object, operation, num_errors)
+            self._process_failures(parsed_results, input_headers, input_table, sf_object, operation, num_errors)
         else:
             logging.info("Process was successful")
 
-    def _process_failures(self, parsed_results, input_headers, sf_object, operation, num_errors: int):
+    def _process_failures(self, parsed_results, input_headers, input_table, sf_object, operation, num_errors: int):
         """
         Process and output log of failed records.
         Args:
             parsed_results:
             input_headers:
+            input_table:
             sf_object:
             operation:
             num_errors:
@@ -125,7 +124,7 @@ class Component(ComponentBase):
         Returns:
 
         """
-        self.write_unsuccessful(parsed_results, input_headers, sf_object, operation)
+        self.write_unsuccessful(parsed_results, input_headers, input_table, sf_object, operation)
         error_table = self.get_error_table_name(operation, sf_object)
 
         if self.configuration.parameters.get(KEY_FAIL_ON_ERROR):
@@ -137,7 +136,7 @@ class Component(ComponentBase):
                             "The process is marked as success because the 'Fail on error' parameter is set to false. "
                             f"Additional details are available in the error log table: {error_table}")
 
-    @retry(SalesforceAuthenticationFailed, tries=3, delay=5)
+    @retry(tries=3, delay=5)
     def login_to_salesforce(self, params):
         try:
             client = SalesforceClient(username=params.get(KEY_USERNAME),
@@ -211,39 +210,45 @@ class Component(ComponentBase):
         results = []
         for i, chunk in enumerate(self.get_chunks(input_file_reader, BATCH_LIMIT)):
             logging.info(f"Processing chunk #{i}")
-            job_result = self.process_job(upsert_field_name, salesforce_client, sf_object, operation, concurrency,
-                                          assignement_id, chunk)
-            results.extend(job_result)
+            try:
+                job_result = self.process_job(upsert_field_name, salesforce_client, sf_object, operation, concurrency,
+                                              assignement_id, chunk)
+                results.extend(job_result)
+            except Exception as e:
+                results.extend([UploadResult('', 'false', 'unknown', e) for _ in chunk])
+                break
         return results
 
     @retry(delay=10, tries=4, backoff=2, exceptions=BulkApiError)
-    def process_job(self, upsert_field_name, salesforce_client, sf_object, operation, concurrency, assignement_id,
+    def process_job(self, upsert_field_name, salesforce_client, sf_object, operation, concurrency, assignment_id,
                     chunk):
-
         job = salesforce_client.create_job(sf_object, operation, external_id_name=upsert_field_name,
                                            contentType='CSV', concurrency=concurrency,
-                                           assignement_id=assignement_id)
+                                           assignement_id=assignment_id)
 
         csv_iter = CsvDictsAdapter(iter(chunk))
         return self.get_job_result(salesforce_client, job, csv_iter)
 
-    def write_unsuccessful(self, parsed_results, input_headers, sf_object, operation):
+    def write_unsuccessful(self, parsed_results, input_headers, input_table, sf_object, operation):
         unsuccessful_table_name = self.get_error_table_name(operation, sf_object)
         logging.info(f"Saving errors to {unsuccessful_table_name}")
         fieldnames = input_headers.copy()
         fieldnames.append("error")
+        fieldnames.append("source_table_id")
         unsuccessful_table = self.create_out_table_definition(name=unsuccessful_table_name, columns=fieldnames)
         with open(unsuccessful_table.full_path, 'w+', newline='') as out_table:
             writer = csv.DictWriter(out_table, fieldnames=fieldnames, lineterminator='\n', delimiter=',')
             in_file_reader = self.get_input_file_data(self.get_input_table(), input_headers)
             for i, row in enumerate(in_file_reader):
-                if parsed_results[i]["success"] == "false":
-                    error_row = row
-                    error_row["error"] = parsed_results[i]["error"]
-                    writer.writerow(error_row)
+                if len(parsed_results) > i:
+                    if parsed_results[i]["success"] == "false":
+                        error_row = row
+                        error_row["error"] = parsed_results[i]["error"]
+                        error_row["source_table_id"] = input_table.id
+                        writer.writerow(error_row)
 
-                    if self.print_failed_to_log:
-                        logging.error({"error": error_row["error"], **error_row})
+                        if self.print_failed_to_log:
+                            logging.error({"error": error_row["error"], **error_row})
 
         # TODO: remove when write_always added to the library
         # self.write_manifest(unsuccessful_table)
@@ -256,7 +261,8 @@ class Component(ComponentBase):
         with open(unsuccessful_table.full_path + '.manifest', 'w') as manifest_file:
             json.dump(manifest, manifest_file)
 
-    def get_error_table_name(self, operation, sf_object):
+    @staticmethod
+    def get_error_table_name(operation, sf_object):
         unsuccessful_table_name = "".join([sf_object, "_", operation, "_unsuccessful.csv"])
         return unsuccessful_table_name
 

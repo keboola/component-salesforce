@@ -41,7 +41,7 @@ class SalesforceClient(SalesforceBulk):
 
         self.host = urlparse(self.endpoint).hostname
 
-    @retry(tries=3, delay=5)
+    @retry(tries=4, delay=5, backoff=2)
     def create_job(self, object_name=None, operation=None, contentType='CSV',
                    concurrency=None, external_id_name=None, pk_chunking=False, assignement_id=None):
         assert (object_name is not None)
