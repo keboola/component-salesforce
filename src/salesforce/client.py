@@ -292,10 +292,13 @@ class SalesforceClient(HttpClient):
 
     def get_batch_result_v1(self, job, csv_iter):
         batch = self.retry_post_batch_v1(job, csv_iter)
+        logging.info(f"Batch ID '{batch}' created.")
         try:
             self.retry_wait_for_batch_v1(job, batch)
         except BulkApiError as e:
             logging.warning(f"Batch ID '{batch}' failed: {e}")
+        status = self.bulk1_client.batch_status(batch, job, reload=True)
+        logging.info(f"Batch status: {status}")
         return self.bulk1_client.get_batch_results(batch)
 
     @backoff.on_exception(backoff.expo, (SSLError, ConnectionError), max_tries=MAX_RETRIES, on_backoff=_backoff_handler)
