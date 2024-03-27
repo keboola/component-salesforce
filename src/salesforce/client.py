@@ -9,7 +9,6 @@ import backoff
 import requests
 import salesforce_bulk
 from keboola.http_client import HttpClient
-from requests import Response
 from salesforce_bulk import SalesforceBulk
 from salesforce_bulk.salesforce_bulk import DEFAULT_API_VERSION, BulkApiError
 from simple_salesforce import Salesforce
