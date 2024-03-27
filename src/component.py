@@ -7,17 +7,19 @@ import subprocess
 from enum import Enum
 from math import floor, ceil
 from time import sleep
-from typing import Dict, List, Iterator, Iterable
+from typing import Dict, List, Iterator
 
 import requests
 from keboola.component.base import ComponentBase, sync_action
 from keboola.component.dao import TableDefinition
 from keboola.component.exceptions import UserException
 from retry import retry
-from salesforce_bulk import CsvDictsAdapter, BulkApiError
+from salesforce_bulk import CsvDictsAdapter
 from simple_salesforce.exceptions import SalesforceAuthenticationFailed
 
 from salesforce.client import SalesforceClient, LineEnding
+
+from bufferManager import InterimBufferManager, InterimBuffer
 
 KEY_ADVANCED_OPTIONS = 'advanced_options'
 
@@ -38,6 +40,8 @@ KEY_OPERATION = "operation"
 KEY_ASSIGNMENT_ID = "assignment_id"
 KEY_UPSERT_FIELD_NAME = "upsert_field_name"
 KEY_SERIAL_MODE = "serial_mode"
+KEY_OVERRIDE_BATCH_SIZE = "override_batch_size"
+KEY_BATCH_SIZE = "batch_size"
 KEY_FAIL_ON_ERROR = "fail_on_error"
 KEY_PRINT_FAILED_TO_LOG = "print_failed_to_log"
 
@@ -54,6 +58,7 @@ REQUIRED_IMAGE_PARS = []
 
 LOG_LIMIT = 15
 MAX_INGEST_JOB_FILE_SIZE = 100 * 1024 * 1024
+MAX_SERIAL_BATCH_SIZE = 2500
 
 DEFAULT_API_VERSION = "40.0"
 
@@ -73,7 +78,7 @@ def estimate_chunk_size(csv_path: str) -> int:
     max_bytes = min(
         csv_data_size, MAX_INGEST_JOB_FILE_SIZE - 1 * 1024 * 1024
     )  # -1 MB for sentinel
-    num_lines = int(subprocess.check_output(f"wc -l {csv_path}", shell=True).split()[0]) - 1
+    num_lines = int(subprocess.check_output(f"wc -l '{csv_path}'", shell=True).split()[0]) - 1
     if max_bytes == csv_data_size:
         return num_lines
     else:
@@ -89,6 +94,23 @@ def skip_first_line(file_path: str) -> list[str]:
     os.remove(file_path)
     os.rename(file_path + '.mod.csv', file_path)
     return header
+
+
+def write_table_manifest(table: TableDefinition):
+    manifest = table.get_manifest_dictionary()
+    if 'queuev2' in os.environ.get('KBC_PROJECT_FEATURE_GATES', ''):
+        manifest['write_always'] = True
+    else:
+        logging.warning("Running on old queue, "
+                        "result log will not be stored unless continue on failure is selected")
+    with open(table.full_path + '.manifest', 'w') as manifest_file:
+        json.dump(manifest, manifest_file)
+
+
+def get_result_table_name(operation, sf_object):
+    config_row_id = os.environ.get("KBC_CONFIGROWID", "KBC_CONFIGROWID")
+    result_table_name = f"{sf_object}_{operation}_result_{config_row_id}.csv"
+    return result_table_name
 
 
 class Component(ComponentBase):
@@ -107,8 +129,7 @@ class Component(ComponentBase):
         elif login_method == LoginType.SECURITY_TOKEN_LOGIN:
 
             self.validate_configuration_parameters([KEY_USERNAME, KEY_PASSWORD, KEY_SECURITY_TOKEN])
-            self.client = SalesforceClient(None, None, None,
-                                           legacy_credentials=dict(username=params.get(KEY_USERNAME),
+            self.client = SalesforceClient(legacy_credentials=dict(username=params.get(KEY_USERNAME),
                                                                    password=params.get(KEY_PASSWORD),
                                                                    security_token=params.get(KEY_SECURITY_TOKEN)),
                                            api_version=params.get(KEY_API_VERSION, DEFAULT_API_VERSION),
@@ -116,7 +137,8 @@ class Component(ComponentBase):
 
         elif login_method == LoginType.CONNECTED_APP_OAUTH_CC:
             self.validate_configuration_parameters([KEY_CONSUMER_KEY, KEY_CONSUMER_SECRET, KEY_DOMAIN])
-            self.client = SalesforceClient(params[KEY_CONSUMER_KEY], params[KEY_CONSUMER_SECRET], None,
+            self.client = SalesforceClient(consumer_key=params[KEY_CONSUMER_KEY],
+                                           consumer_secret=params[KEY_CONSUMER_SECRET],
                                            api_version=params.get(KEY_API_VERSION, DEFAULT_API_VERSION),
                                            is_sandbox=params.get(KEY_SANDBOX),
                                            domain=params[KEY_DOMAIN])
@@ -143,9 +165,9 @@ class Component(ComponentBase):
         if upsert_field_name:
             upsert_field_name = upsert_field_name.strip()
 
-        assignement_id = params.get(KEY_ASSIGNMENT_ID)
-        if assignement_id:
-            assignement_id = assignement_id.strip()
+        assignment_id = params.get(KEY_ASSIGNMENT_ID)
+        if assignment_id:
+            assignment_id = assignment_id.strip()
 
         logging.info(f"Running {operation} operation with input table to the {sf_object} Salesforce object")
 
@@ -164,36 +186,34 @@ class Component(ComponentBase):
             raise UserException("Delete operation should only have one column with id, input table contains "
                                 f"{len(input_headers)} columns")
 
+        result_table = self.create_result_table(operation, sf_object)
+        buffer_manager = InterimBufferManager(self.data_folder_path, result_table, serial_mode)
+
+        run_error: Exception = None
         try:
-            results = self.write_to_salesforce(input_table, upsert_field_name,
-                                               sf_object, operation, assignement_id, serial_mode)
-        except BulkApiError as bulk_error:
-            raise UserException(bulk_error) from bulk_error
+            self.write_to_salesforce(input_table, upsert_field_name,
+                                     sf_object, operation, assignment_id, serial_mode, buffer_manager)
+        except Exception as ex:
+            run_error = ex
 
-        parsed_results, num_success, num_errors = self.parse_results(results, serial_mode)
+        if buffer_manager.unprocessed_buffers():
+            self.write_unprocessed_buffers(buffer_manager, str(run_error))
+            logging.warning(f"{buffer_manager.unprocessed_buffers()} "
+                            f"buffers were not processed will be written to the result table with error message")
 
-        logging.info(
-            f"All data written to salesforce, {operation}ed {num_success} records, {num_errors} errors occurred")
-
-        if num_success > 0:
-            # the filed will be sliced.
-            if serial_mode:
-                success_table = self.write_successful_v1(parsed_results, sf_object, operation)
-            else:
-                success_table = self.write_successful_v2(parsed_results, sf_object, operation)
-            logging.info(f"Ids of {num_success} successfuly inserted records were logged to {success_table.name}")
-
-        if num_errors > 0:
-            # the filed will be sliced.
-            if serial_mode:
-                error_table = self.write_unsuccessful_v1(parsed_results, sf_object, operation)
-            else:
-                error_table = self.write_unsuccessful_v2(parsed_results, sf_object, operation)
-            raise UserException(
-                f"{num_errors} errors occurred. "
-                f"Additional details are available in the error log table: {error_table.name}")
+        if run_error:
+            logging.warning(
+                f"Process was unsuccessful!"
+                f"- {operation}ed {buffer_manager.total_success()} records,"
+                f" {buffer_manager.total_error()} errors occurred,"
+                f" more details in {buffer_manager.result_table.full_path}")
+            raise UserException(run_error)
         else:
-            logging.info("Process was successful")
+            logging.info(
+                f"Process was successful."
+                f"- {operation}ed {buffer_manager.total_success()} records,"
+                f" {buffer_manager.total_error()} errors occurred,"
+                f" more details in {buffer_manager.result_table.full_path}")
 
     def _get_login_method(self) -> LoginType:
         if self.configuration.oauth_credentials:
@@ -208,7 +228,7 @@ class Component(ComponentBase):
             raise UserException(
                 f"'{login_type_name}' is not a valid Login Type. Enter one of : {LoginType.list()}") from val_err
 
-    @retry(SalesforceAuthenticationFailed, tries=2, delay=5)
+    @retry(SalesforceAuthenticationFailed, tries=3, delay=10)
     def login_to_salesforce(self):
         self.set_proxy()
         try:
@@ -233,252 +253,204 @@ class Component(ComponentBase):
     def get_input_file_data(input_table: TableDefinition) -> Iterator[dict]:
         with open(input_table.full_path, mode='r') as in_file:
             reader = csv.DictReader(in_file, fieldnames=input_table.columns)
-            # there will always be input header
-            # TODO: this is not true only when before manifests are used, add support
-            next(reader)
+            # if exists manifest, skip first row
+            if input_table.get_manifest_dictionary():
+                next(reader)
             for input_row in reader:
                 yield input_row
 
     @staticmethod
-    def get_chunks(generator, chunk_size):
+    def create_buffers(generator, chunk_size, buffer_manager):
         chunk = []
         for item in generator:
             if len(chunk) >= chunk_size:
-                yield chunk
+                buffer_manager.create_buffer(chunk)
                 chunk = [item]
             else:
                 chunk.append(item)
         if chunk:
-            yield chunk
-
-    def parse_results(self, results, serial_mode: bool):
-        if serial_mode:
-            return self._parse_results_v1(results)
-        else:
-            return self._parse_results_v2(results)
-
-    @staticmethod
-    def _parse_results_v1(results):
-        parsed_results = []
-        num_errors = 0
-        num_success = 0
-        for result_list in results:
-            for result in result_list:
-                parsed_results.append(result)
-                if result.success == "false":
-                    num_errors = num_errors + 1
-                else:
-                    num_success = num_success + 1
-        return parsed_results, num_success, num_errors
-
-    @staticmethod
-    def _parse_results_v2(results):
-        parsed_results = []
-        num_errors = 0
-        num_success = 0
-        for result in results:
-            num_errors = num_errors + result['numberRecordsFailed']
-            num_success = num_success + (result['numberRecordsProcessed'] - result['numberRecordsFailed'])
-            parsed_results.append(result)
-
-        return parsed_results, num_success, num_errors
+            buffer_manager.create_buffer(chunk)
 
     def write_to_salesforce(self, input_table: TableDefinition, upsert_field_name,
-                            sf_object, operation, assignement_id, serial_mode=False):
+                            sf_object, operation, assignment_id, serial_mode, buffer_manager):
 
         input_file_reader = self.get_input_file_data(input_table)
-        batch_size_override = self.configuration.parameters.get(KEY_ADVANCED_OPTIONS, {}).get('batch_size', None)
-
-        if serial_mode:
-            chunk_size = batch_size_override or 2500
-        else:
-            chunk_size = batch_size_override or estimate_chunk_size(input_table.full_path)
+        chunk_size = self.define_chunk_size(input_table, serial_mode)
 
         logging.info(f'Batch size set to: {chunk_size:,}')
-        chunk_generator = self.get_chunks(input_file_reader, chunk_size)
+        self.create_buffers(input_file_reader, chunk_size, buffer_manager)
+        logging.info(
+            f"Input data ({buffer_manager.total_rows()} rows) split to {len(buffer_manager.buffers)} chunks")
         if serial_mode:
-            logging.warning("Running in serial mode (fall back to Bulk API v1")
-            return self.upload_data_serial(upsert_field_name, sf_object, operation, assignement_id, chunk_generator)
+            logging.warning("Running in serial mode (fall back to Bulk API v1)")
+            return self.upload_data_serial(upsert_field_name, sf_object, operation, assignment_id, buffer_manager)
         else:
             logging.info("Running batches in parallel (Bulk 2.0)")
-            return self.upload_data_bulk2(upsert_field_name, sf_object, operation, assignement_id,
-                                          chunk_generator)
+            return self.upload_data_bulk2(upsert_field_name, sf_object, operation, assignment_id, buffer_manager)
 
-    def upload_data_bulk2(self, upsert_field_name,
-                          sf_object, operation, assignement_id, chunks_iterator: Iterable):
-        upload_jobs = []
-        for i, chunk in enumerate(chunks_iterator):
-            logging.info(f"Uploading chunk #{i}")
-            upload_job = self.upload_data(upsert_field_name, sf_object, operation,
-                                          assignement_id, chunk)
-            upload_jobs.append(upload_job)
-        finished_jobs = []
-        job_count = len(upload_jobs)
-        logging.info(f"Waiting for {job_count} chunks to finish")
-        while job_count > len(finished_jobs):
-            for job in upload_jobs:
+    def define_chunk_size(self, input_table, serial_mode):
+        batch_size_override = None
+        if self.configuration.parameters.get(KEY_ADVANCED_OPTIONS, {}).get(KEY_OVERRIDE_BATCH_SIZE, None):
+            batch_size_override = self.configuration.parameters.get(KEY_ADVANCED_OPTIONS, {}).get(KEY_BATCH_SIZE, None)
+        if serial_mode:
+            chunk_size = batch_size_override or MAX_SERIAL_BATCH_SIZE
+        else:
+            chunk_size = batch_size_override or estimate_chunk_size(input_table.full_path)
+        return chunk_size
+
+    def upload_data_bulk2(self, upsert_field_name, sf_object, operation, assignment_id,
+                          buffer_manager: InterimBufferManager):
+        for buffer in buffer_manager.buffers:
+            chunk = buffer.get_buffer_data()
+            csv_iter = CsvDictsAdapter(iter(chunk))
+            logging.info(f"Creating job and uploading chunk #{buffer.id}")
+            upload_job = self.client.create_job_and_upload_data(sf_object, operation,
+                                                                external_id_field=upsert_field_name,
+                                                                line_ending=LineEnding.CRLF,
+                                                                assignment_rule_id=assignment_id,
+                                                                input_stream=csv_iter)
+            buffer.add_job(upload_job.get('id'))
+        job_count = len(buffer_manager.buffers)
+        logging.info(f"Created and uploaded {job_count} jobs, waiting for the finish")
+        finished_jobs = 0
+        while job_count > finished_jobs:
+            for buffer in buffer_manager.buffers:
                 sleep(2)
-                actual_job = self.client.get_job_status(job['id'])
+                actual_job = self.client.get_job_status(buffer.job_id)
                 if self.client.is_job_done(actual_job):
-                    logging.info(f'{len(finished_jobs)} chunks finished.')
-                    finished_jobs.append(actual_job)
-        return finished_jobs
+                    buffer.finish_job(actual_job)
+                    self.process_buffer(buffer)
+                    finished_jobs = buffer_manager.finished_jobs()
+                    logging.info(f'{finished_jobs} jobs finished out of {job_count}')
 
-    def upload_data_serial(self, upsert_field_name, sf_object, operation, assignement_id, chunks: Iterable):
+    def upload_data_serial(self, upsert_field_name, sf_object, operation, assignment_id,
+                           buffer_manager: InterimBufferManager):
 
-        results = []
         job_id = self.client.create_job_v1(sf_object, operation, external_id_name=upsert_field_name,
                                            contentType='CSV', concurrency='Serial',
-                                           assignement_id=assignement_id)
+                                           assignement_id=assignment_id)
         logging.info(f"Created job {job_id}")
-        for i, chunk in enumerate(chunks):
-            logging.info(f"Processing chunk #{i} (size {len(chunk)})")
+        for buffer in buffer_manager.get_buffers():
+            logging.info(f"Uploading and processing job #{buffer.id}")
+            buffer.add_job(job_id)
+            chunk = buffer.get_buffer_data()
             csv_iter = CsvDictsAdapter(iter(chunk))
-            results.append(self.client.get_batch_result_v1(job_id, csv_iter))
-
+            result = self.client.get_batch_result_v1(job_id, csv_iter)
+            buffer.finish_job(result)
+            self.process_buffer(buffer)
+            logging.info(f"Processing response for #{job_id}")
         self.client.close_job_v1(job_id)
-        return results
+        logging.info(f"Job #{job_id} done")
 
-    def upload_data(self, upsert_field_name, sf_object, operation, assignement_id, chunk):
-        csv_iter = CsvDictsAdapter(iter(chunk))
-
-        job = self.client.create_job_and_upload_data(sf_object, operation, external_id_field=upsert_field_name,
-                                                     line_ending=LineEnding.CRLF,
-                                                     assignment_rule_id=assignement_id,
-                                                     input_stream=csv_iter)
-        return job
-
-    def write_unsuccessful_v1(self, parsed_results, sf_object, operation) -> TableDefinition:
-        """
-        Legacy bulk1 method
-        Args:
-            parsed_results:
-            sf_object:
-            operation:
-
-        Returns:
-
-        """
-        unsuccessful_table_name = self.get_error_table_name(operation, sf_object)
-        logging.info(f"Saving errors to {unsuccessful_table_name}")
-        fieldnames = ["sf__Id", "sf__Error"]
-        fieldnames.extend(self.get_input_table().columns)
-
-        unsuccessful_table = self.create_out_table_definition(name=unsuccessful_table_name, columns=fieldnames)
-        with open(unsuccessful_table.full_path, 'w+', newline='') as out_table:
-            writer = csv.DictWriter(out_table, fieldnames=fieldnames, lineterminator='\n', delimiter=',')
-            in_file_reader = self.get_input_file_data(self.get_input_table())
-            for i, row in enumerate(in_file_reader):
-                if parsed_results[i].success == "false":
-                    error_row = row
-                    error_row["sf__Error"] = parsed_results[i].error
-                    error_row["sf__Id"] = parsed_results[i].id
-                    writer.writerow(error_row)
-
-        # TODO: remove when write_always added to the library
-        self.write_table_manifest(unsuccessful_table)
-
-        return unsuccessful_table
-
-    def write_unsuccessful_v2(self, failed_jobs, sf_object, operation) -> TableDefinition:
-
-        if not failed_jobs:
-            return ''
-        unsuccessful_table_name = self.get_error_table_name(operation, sf_object)
-        unsuccessful_table = self.create_out_table_definition(name=unsuccessful_table_name)
-        os.makedirs(unsuccessful_table.full_path, exist_ok=True)
-
-        # download slices
-        header = []
-
-        for i, job in enumerate(failed_jobs):
-            err_file_path = os.path.join(unsuccessful_table.full_path, f'{i}.csv')
-            self.client.download_results(job['id'], err_file_path, "failedResults")
-            header = skip_first_line(err_file_path)
-
-        fieldnames = header
-        unsuccessful_table.columns = fieldnames
-
-        # TODO: remove when write_always added to the library
-        # self.write_manifest(unsuccessful_table)
-        self.write_table_manifest(unsuccessful_table)
-        return unsuccessful_table
-
-    def write_successful_v1(self, parsed_results, sf_object, operation) -> TableDefinition:
-        """
-        Legacy bulk1 method
-        Args:
-            parsed_results:
-            sf_object:
-            operation:
-
-        Returns:
-
-        """
-        successful_table_name = self.get_success_table_name(operation, sf_object)
-        logging.info(f"Saving successful results to {successful_table_name}")
-        fieldnames = ["sf__Id", "sf__Created"]
-        fieldnames.extend(self.get_input_table().columns)
-
-        successful_table = self.create_out_table_definition(name=successful_table_name, columns=fieldnames)
-        with open(successful_table.full_path, 'w+', newline='') as out_table:
-            writer = csv.DictWriter(out_table, fieldnames=fieldnames, lineterminator='\n', delimiter=',')
-            in_file_reader = self.get_input_file_data(self.get_input_table())
-            for i, row in enumerate(in_file_reader):
-                if parsed_results[i].success == "true":
-                    row["sf__Id"] = parsed_results[i].id
-                    row["sf__Created"] = parsed_results[i].created
-                    writer.writerow(row)
-
-        # TODO: remove when write_always added to the library
-        self.write_table_manifest(successful_table)
-
-        return successful_table
-
-    def write_successful_v2(self, success_table, sf_object, operation) -> TableDefinition:
-
-        if not success_table:
-            return ''
-
-        successful_table_name = self.get_success_table_name(operation, sf_object)
-        logging.info(f"Saving successful results to {successful_table_name}")
-        successful_table = self.create_out_table_definition(name=successful_table_name)
-        os.makedirs(successful_table.full_path, exist_ok=True)
-
-        # download slices
-        header = []
-
-        for i, job in enumerate(success_table):
-            file_path = os.path.join(successful_table.full_path, f'{i}.csv')
-            self.client.download_results(job['id'], file_path, "successfulResults")
-            header = skip_first_line(file_path)
-
-        successful_table.columns = header
-
-        # TODO: remove when write_always added to the library
-        # self.write_manifest(unsuccessful_table)
-        self.write_table_manifest(successful_table)
-        return successful_table
-
-    def write_table_manifest(self, table: TableDefinition):
-        manifest = table.get_manifest_dictionary()
-        if 'queuev2' in os.environ.get('KBC_PROJECT_FEATURE_GATES', ''):
-            manifest['write_always'] = True
+    def process_buffer(self, buffer):
+        if buffer.serial_mode:
+            self.parse_result_v1(buffer)
+            self.write_result_v1(buffer)
         else:
-            logging.warning("Running on old queue, "
-                            "result log will not be stored unless continue on failure is selected")
-        with open(table.full_path + '.manifest', 'w') as manifest_file:
-            json.dump(manifest, manifest_file)
+            self.parse_result_v2(buffer)
+            if buffer.job_error_message:
+                Component.write_buffer(buffer)
+            else:
+                self.write_result_v2(buffer)
 
-    def get_error_table_name(self, operation, sf_object):
-        config_row_id = os.environ.get("KBC_CONFIGROWID", "KBC_CONFIGROWID")
-        unsuccessful_table_name = f"{sf_object}_{operation}_unsuccessful_{config_row_id}.csv"
-        return unsuccessful_table_name
+    @staticmethod
+    def parse_result_v1(buffer: InterimBuffer):
+        num_errors = 0
+        num_success = 0
+        for chunk in buffer.result:
+            if chunk.success == "false":
+                num_errors = num_errors + 1
+            else:
+                num_success = num_success + 1
+        buffer.success = num_success
+        buffer.error = num_errors
 
-    def get_success_table_name(self, operation, sf_object):
-        config_row_id = os.environ.get("KBC_CONFIGROWID", "KBC_CONFIGROWID")
-        successful_table_name = f"{sf_object}_{operation}_successful_{config_row_id}.csv"
-        return successful_table_name
+    @staticmethod
+    def parse_result_v2(buffer: InterimBuffer):
+        num_errors = 0
+        num_success = 0
+        if buffer.result['state'] == 'Failed':
+            num_errors = buffer.row_count
+            buffer.job_error_message = buffer.result['errorMessage']
+            logging.debug(f"Job {buffer.job_id} failed with message: {buffer.job_error_message}")
+        else:
+            num_errors = num_errors + buffer.result['numberRecordsFailed']
+            num_success = num_success + (buffer.result['numberRecordsProcessed'] - buffer.result['numberRecordsFailed'])
+        buffer.success = num_success
+        buffer.error = num_errors
+
+    def write_result_v2(self, buffer: InterimBuffer):
+
+        result_table = buffer.result_table
+        if buffer.success > 0:
+            success_result_key = "successfulResults"
+            self.process_result_v2(buffer, result_table, success_result_key)
+        if buffer.error > 0:
+            error_result_key = "failedResults"
+            self.process_result_v2(buffer, result_table, error_result_key)
+        buffer.process_done()
+        # TODO: remove when write_always added to the library
+        write_table_manifest(result_table)
+
+    def process_result_v2(self, buffer, result_table, result_key):
+        file_path = os.path.join(result_table.full_path, f'{buffer.id}.csv')
+        sf_job_result_file_path = os.path.join(result_table.full_path, f'{buffer.id}_{result_key}.csv')
+        self.client.download_results(buffer.job_id, sf_job_result_file_path, result_key)
+        with open(sf_job_result_file_path, 'r') as result_file:
+            result_file_reader = csv.DictReader(result_file)
+            with open(file_path, 'a', newline='') as out_table:
+                writer = csv.DictWriter(out_table, fieldnames=result_table.columns, lineterminator='\n', delimiter=',')
+                writer.writerows(result_file_reader)
+        os.remove(sf_job_result_file_path)
+
+    @staticmethod
+    def write_result_v1(buffer: InterimBuffer):
+        result_table = buffer.result_table
+
+        file_path = os.path.join(result_table.full_path, f'{buffer.id}.csv')
+        with open(file_path, 'w+', newline='') as out_table:
+            writer = csv.DictWriter(out_table, fieldnames=result_table.columns, lineterminator='\n', delimiter=',')
+            for i, row in enumerate(buffer.get_buffer_data()):
+                if buffer.result[i].success == "true":
+                    row["sf__Id"] = buffer.result[i].id
+                    row["sf__Created"] = buffer.result[i].created
+                    writer.writerow(row)
+                else:
+                    row["sf__Error"] = buffer.result[i].error
+                    writer.writerow(row)
+            buffer.process_done()
+
+        # TODO: remove when write_always added to the library
+        write_table_manifest(result_table)
+
+    @staticmethod
+    def write_unprocessed_buffers(buffer_manager: InterimBufferManager, error_message):
+        for buffer in buffer_manager.unprocessed_buffers():
+            Component.write_buffer(buffer, error_message)
+
+    @staticmethod
+    def write_buffer(buffer, error_message=None):
+        result_table = buffer.result_table
+        file_path = os.path.join(result_table.full_path, f'{buffer.id}.csv')
+        with open(file_path, 'w+', newline='') as out_table:
+            writer = csv.DictWriter(out_table, fieldnames=result_table.columns, lineterminator='\n', delimiter=',')
+            for i, row in enumerate(buffer.get_buffer_data()):
+                row["kbc__Error"] = error_message
+                row["sf__Error"] = buffer.job_error_message
+                writer.writerow(row)
+        buffer.process_done()
+        # TODO: remove when write_always added to the library
+        write_table_manifest(result_table)
+
+    def create_result_table(self, operation, sf_object) -> TableDefinition:
+        result_table_name = get_result_table_name(operation, sf_object)
+        logging.info(f"Saving results to {result_table_name}")
+        result_table = self.create_out_table_definition(name=result_table_name)
+        fieldnames = ["sf__Id", "sf__Created", "sf__Error", "kbc__Error"]
+        fieldnames.extend(self.get_input_table().columns)
+        result_table.columns = fieldnames
+        os.makedirs(result_table.full_path, exist_ok=True)
+        return result_table
 
     def set_proxy(self) -> None:
         """Sets proxy if defined"""
@@ -515,7 +487,7 @@ class Component(ComponentBase):
 
         os.environ["HTTPS_PROXY"] = _proxy_server
 
-        logging.info("Component will use proxy server.")
+        logging.info(f"Component will use proxy server {_proxy_server}.")
 
     @sync_action('loadObjects')
     def load_possible_objects(self) -> List[Dict]:
@@ -530,7 +502,6 @@ class Component(ComponentBase):
         return self.client.get_bulk_fetchable_objects()
 
     def get_salesforce_client(self) -> SalesforceClient:
-
         try:
             return self.login_to_salesforce()
         except SalesforceAuthenticationFailed as e:

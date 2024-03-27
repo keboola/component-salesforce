@@ -9,6 +9,7 @@ import backoff
 import requests
 import salesforce_bulk
 from keboola.http_client import HttpClient
+from requests import Response
 from salesforce_bulk import SalesforceBulk
 from salesforce_bulk.salesforce_bulk import DEFAULT_API_VERSION, BulkApiError
 from simple_salesforce import Salesforce
@@ -45,8 +46,9 @@ class SalesforceAuthenticationFailed(Exception):
 
 
 class SalesforceClient(HttpClient):
-    def __init__(self, consumer_key: str, consumer_secret: str, refresh_token: str, is_sandbox: bool = False,
-                 api_version=DEFAULT_API_VERSION, legacy_credentials: dict = None, domain=None):
+    def __init__(self, consumer_key: str = None, consumer_secret: str = None, refresh_token: str = None,
+                 is_sandbox: bool = False, api_version=DEFAULT_API_VERSION, legacy_credentials: dict = None,
+                 domain=None):
 
         super().__init__('NONE', max_retries=MAX_RETRIES)
 
@@ -93,7 +95,7 @@ class SalesforceClient(HttpClient):
 
         # init simple client
         self._init_simple_client(access_token, self.domain)
-        self._init_bulk1_client(access_token, sf_instance)
+        self._init_bulk1_client(access_token)
 
     def _login_oauth(self, domain: str):
         if self._refresh_token:
@@ -144,7 +146,7 @@ class SalesforceClient(HttpClient):
         self.simple_client = Salesforce(session_id=access_token, instance_url=instance_url,
                                         domain=domain, version=self.api_version)
 
-    def _init_bulk1_client(self, access_token: str, instance_url: str):
+    def _init_bulk1_client(self, access_token: str):
         instance_url = self.base_url
         self.bulk1_client = LegacyBulkClient(session_id=access_token, instance_url=instance_url,
                                              api_version=self.api_version)
@@ -155,7 +157,7 @@ class SalesforceClient(HttpClient):
                                    column_delimiter=ColumnDelimiter.COMMA,
                                    line_ending=LineEnding.LF,
                                    external_id_field=None,
-                                   assignment_rule_id=None) -> dict:
+                                   assignment_rule_id=None):
         """
         Creates job, uploads data and marks upload job as uploadComplete to start processing on salesforce side.
         Returns resulting job
@@ -176,6 +178,7 @@ class SalesforceClient(HttpClient):
                                      line_ending,
                                      external_id_field,
                                      assignment_rule_id)
+        logging.debug(job)
         logging.debug(job)
         self.upload_data(job['contentUrl'], input_stream)
         self.mark_upload_job_complete(job_id=job['id'])
@@ -205,6 +208,7 @@ class SalesforceClient(HttpClient):
         payload["contentType"] = "CSV"
 
         endpoint = f"/services/data/v{self.api_version}/jobs/ingest"
+        logging.debug(f"Creating job for {sf_object}")
         result = self.post_raw(
             endpoint_path=endpoint,
             json=payload,
@@ -214,14 +218,14 @@ class SalesforceClient(HttpClient):
         return result.json(object_pairs_hook=OrderedDict)
 
     def upload_data(self, content_url: str, input_stream: Iterable):
-
+        logging.debug(f"uploading data to {content_url}")
         headers = {'Content-Type': 'text/csv'}
 
-        self.put_raw(endpoint_path=content_url, headers=headers, data=input_stream)
+        logging.debug(self.put_raw(endpoint_path=content_url, headers=headers, data=input_stream))
 
     def mark_upload_job_complete(self, job_id: str):
         endpoint = f'/services/data/v{self.api_version}/jobs/ingest/{job_id}'
-        self.patch(endpoint, json={"state": "UploadComplete"})
+        logging.debug(self.patch(endpoint, json={"state": "UploadComplete"}))
 
     def get_job_status(self, job_id: str):
         endpoint = f'/services/data/v{self.api_version}/jobs/ingest/{job_id}'
@@ -235,9 +239,10 @@ class SalesforceClient(HttpClient):
             for chunk in res.iter_content(chunk_size=8192):
                 out.write(chunk)
 
-    def is_job_done(self, job: dict):
-        OUTCOME_STATES = ['JobComplete', 'Failed', 'Aborted']
-        return job['state'] in OUTCOME_STATES
+    @staticmethod
+    def is_job_done(job: dict):
+        outcome_states = ['JobComplete', 'Failed', 'Aborted']
+        return job['state'] in outcome_states
 
     def get_bulk_fetchable_objects(self):
         all_s_objects = self.simple_client.describe()["sobjects"]
@@ -287,6 +292,7 @@ class SalesforceClient(HttpClient):
 
         return job_id
 
+    @backoff.on_exception(backoff.expo, (SSLError, ConnectionError), max_tries=MAX_RETRIES, on_backoff=_backoff_handler)
     def close_job_v1(self, job_id):
         self.bulk1_client.close_job(job_id)
 
@@ -318,6 +324,7 @@ class SalesforceClient(HttpClient):
 class LegacyBulkClient(SalesforceBulk):
     def __init__(self, session_id: str, instance_url: str, api_version: str):
 
+        super().__init__(sessionId=session_id, host=instance_url, API_version=api_version)
         if instance_url[0:4] == 'http':
             self.endpoint = instance_url
         else:
