@@ -236,12 +236,21 @@ class Component(ComponentBase):
         except requests.exceptions.ProxyError as e:
             raise UserException(f"Cannot connect to proxy: {e}")
 
+    @staticmethod
+    def get_input_table_count(input_tables: TableDefinition):
+        with open(input_tables.full_path, mode='r') as in_file:
+            row_count = len(in_file.readlines())
+        return row_count
+
     def get_input_table(self):
         input_tables = self.get_input_tables_definitions()
         if len(input_tables) == 0:
             raise UserException("No input table added. Please add an input table")
         elif len(input_tables) > 1:
             raise UserException("Too many input tables added. Please add only one input table")
+        if self.get_input_table_count(input_tables[0]) < 2:
+            logging.info("Input table is empty. Exiting.")
+            exit(1)
         return input_tables[0]
 
     @staticmethod
