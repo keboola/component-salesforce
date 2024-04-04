@@ -78,11 +78,16 @@ def estimate_chunk_size(csv_path: str) -> int:
     max_bytes = min(
         csv_data_size, MAX_INGEST_JOB_FILE_SIZE - 1 * 1024 * 1024
     )  # -1 MB for sentinel
-    num_lines = int(subprocess.check_output(f"wc -l '{csv_path}'", shell=True).split()[0]) - 1
+    num_lines = get_file_row_count(csv_path)
     if max_bytes == csv_data_size:
         return num_lines
     else:
         return floor(num_lines / ceil(csv_data_size / max_bytes))
+
+
+def get_file_row_count(input_table_path):
+    row_count = int(subprocess.check_output(f"wc -l '{input_table_path}'", shell=True).split()[0])
+    return row_count
 
 
 def skip_first_line(file_path: str) -> list[str]:
@@ -236,19 +241,13 @@ class Component(ComponentBase):
         except requests.exceptions.ProxyError as e:
             raise UserException(f"Cannot connect to proxy: {e}")
 
-    @staticmethod
-    def get_input_table_count(input_tables: TableDefinition):
-        with open(input_tables.full_path, mode='r') as in_file:
-            row_count = len(in_file.readlines())
-        return row_count
-
     def get_input_table(self):
         input_tables = self.get_input_tables_definitions()
         if len(input_tables) == 0:
             raise UserException("No input table added. Please add an input table")
         elif len(input_tables) > 1:
             raise UserException("Too many input tables added. Please add only one input table")
-        if self.get_input_table_count(input_tables[0]) < 2:
+        if get_file_row_count(input_tables[0].full_path) < 1:
             logging.info("Input table is empty. Exiting.")
             exit(1)
         return input_tables[0]
