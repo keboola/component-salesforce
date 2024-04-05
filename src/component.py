@@ -191,7 +191,7 @@ class Component(ComponentBase):
             raise UserException("Delete operation should only have one column with id, input table contains "
                                 f"{len(input_headers)} columns")
 
-        result_table = self.create_result_table(operation, sf_object)
+        result_table = self.create_result_table(input_headers, operation, sf_object)
         buffer_manager = InterimBufferManager(self.data_folder_path, result_table, serial_mode)
 
         run_error: Exception = None
@@ -450,12 +450,12 @@ class Component(ComponentBase):
         # TODO: remove when write_always added to the library
         write_table_manifest(result_table)
 
-    def create_result_table(self, operation, sf_object) -> TableDefinition:
+    def create_result_table(self, input_headers, operation, sf_object) -> TableDefinition:
         result_table_name = get_result_table_name(operation, sf_object)
         logging.info(f"Saving results to {result_table_name}")
         result_table = self.create_out_table_definition(name=result_table_name)
         fieldnames = ["sf__Id", "sf__Created", "sf__Error", "kbc__Error"]
-        fieldnames.extend(self.get_input_table().columns)
+        fieldnames.extend(input_headers)
         result_table.columns = fieldnames
         os.makedirs(result_table.full_path, exist_ok=True)
         return result_table
