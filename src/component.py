@@ -191,7 +191,7 @@ class Component(ComponentBase):
             raise UserException("Delete operation should only have one column with id, input table contains "
                                 f"{len(input_headers)} columns")
 
-        result_table = self.create_result_table(input_headers, operation, sf_object)
+        result_table = self.create_result_table(input_table.columns, operation, sf_object)
         buffer_manager = InterimBufferManager(self.data_folder_path, result_table, serial_mode)
 
         run_error: Exception = None
@@ -311,7 +311,7 @@ class Component(ComponentBase):
         for buffer in buffer_manager.buffers:
             chunk = buffer.get_buffer_data()
             csv_iter = CsvDictsAdapter(iter(chunk))
-            logging.info(f"Creating job and uploading chunk #{buffer.id}")
+            logging.info(f"Creating job and uploading buffer #{buffer.id}")
             upload_job = self.client.create_job_and_upload_data(sf_object, operation,
                                                                 external_id_field=upsert_field_name,
                                                                 line_ending=LineEnding.CRLF,
@@ -339,7 +339,7 @@ class Component(ComponentBase):
                                            assignement_id=assignment_id)
         logging.info(f"Created job {job_id}")
         for buffer in buffer_manager.get_buffers():
-            logging.info(f"Uploading and processing job #{buffer.id}")
+            logging.info(f"Uploading buffer and processing job #{buffer.id}")
             buffer.add_job(job_id)
             chunk = buffer.get_buffer_data()
             csv_iter = CsvDictsAdapter(iter(chunk))
@@ -438,6 +438,7 @@ class Component(ComponentBase):
 
     @staticmethod
     def write_buffer(buffer, error_message=None):
+        logging.debug(f"Writing buffer {buffer.id} to the result table")
         result_table = buffer.result_table
         file_path = os.path.join(result_table.full_path, f'{buffer.id}.csv')
         with open(file_path, 'w+', newline='') as out_table:
@@ -450,12 +451,12 @@ class Component(ComponentBase):
         # TODO: remove when write_always added to the library
         write_table_manifest(result_table)
 
-    def create_result_table(self, input_headers, operation, sf_object) -> TableDefinition:
-        result_table_name = get_result_table_name(operation, sf_object)
-        logging.info(f"Saving results to {result_table_name}")
-        result_table = self.create_out_table_definition(name=result_table_name)
+    def create_result_table(self, columns, operation, sf_object) -> TableDefinition:
         fieldnames = ["sf__Id", "sf__Created", "sf__Error", "kbc__Error"]
-        fieldnames.extend(input_headers)
+        fieldnames.extend(columns)
+        result_table_name = get_result_table_name(operation, sf_object)
+        logging.debug(f"Creating result table {result_table_name} with columns {fieldnames}")
+        result_table = self.create_out_table_definition(name=result_table_name)
         result_table.columns = fieldnames
         os.makedirs(result_table.full_path, exist_ok=True)
         return result_table

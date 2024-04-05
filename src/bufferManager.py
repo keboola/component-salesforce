@@ -64,7 +64,7 @@ class InterimBuffer:
 
     def process_done(self):
         self.processed = True
-        logging.debug(f"Removing buffer file {self.file_path}")
+        logging.debug(f"Buffer {self.id} processed. Removing buffer file {self.file_path}")
         os.remove(self.file_path)
 
     def finish_job(self, result):
