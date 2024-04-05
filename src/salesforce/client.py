@@ -223,14 +223,17 @@ class SalesforceClient(HttpClient):
 
         logging.debug(self.put_raw(endpoint_path=content_url, headers=headers, data=input_stream))
 
+    @backoff.on_exception(backoff.expo, (SSLError, ConnectionError), max_tries=MAX_RETRIES, on_backoff=_backoff_handler)
     def mark_upload_job_complete(self, job_id: str):
         endpoint = f'/services/data/v{self.api_version}/jobs/ingest/{job_id}'
         logging.debug(self.patch(endpoint, json={"state": "UploadComplete"}))
 
+    @backoff.on_exception(backoff.expo, (SSLError, ConnectionError), max_tries=MAX_RETRIES, on_backoff=_backoff_handler)
     def get_job_status(self, job_id: str):
         endpoint = f'/services/data/v{self.api_version}/jobs/ingest/{job_id}'
         return self.get(endpoint)
 
+    @backoff.on_exception(backoff.expo, (SSLError, ConnectionError), max_tries=MAX_RETRIES, on_backoff=_backoff_handler)
     def download_results(self, job_id: str, result_path: str, results_type: str):
         endpoint = f'/services/data/v{self.api_version}/jobs/ingest/{job_id}/{results_type}'
         res = self.get_raw(endpoint, stream=True)
