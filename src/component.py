@@ -203,7 +203,7 @@ class Component(ComponentBase):
 
         if buffer_manager.total_unprocessed_buffers() > 0:
             self.write_unprocessed_buffers(buffer_manager, str(run_error))
-            logging.warning(f"{len(buffer_manager.total_unprocessed_buffers())} "
+            logging.warning(f"{buffer_manager.total_unprocessed_buffers()} "
                             f"buffers were not processed will be written to the result table with error message")
 
         if run_error:
