@@ -14,7 +14,8 @@ from salesforce_bulk.salesforce_bulk import DEFAULT_API_VERSION, BulkApiError
 from simple_salesforce import Salesforce
 from simple_salesforce.bulk2 import Operation, ColumnDelimiter, LineEnding
 from six import text_type
-from urllib3.exceptions import SSLError
+from urllib3.exceptions import SSLError as urllib3_SSLError
+from requests.exceptions import SSLError
 
 NON_SUPPORTED_BULK_FIELD_TYPES = ["address", "location", "base64", "reference"]
 
@@ -223,17 +224,20 @@ class SalesforceClient(HttpClient):
 
         logging.debug(self.put_raw(endpoint_path=content_url, headers=headers, data=input_stream))
 
-    @backoff.on_exception(backoff.expo, (SSLError, ConnectionError), max_tries=MAX_RETRIES, on_backoff=_backoff_handler)
+    @backoff.on_exception(backoff.expo, (SSLError, urllib3_SSLError, ConnectionError), max_tries=MAX_RETRIES,
+                          on_backoff=_backoff_handler)
     def mark_upload_job_complete(self, job_id: str):
         endpoint = f'/services/data/v{self.api_version}/jobs/ingest/{job_id}'
         logging.debug(self.patch(endpoint, json={"state": "UploadComplete"}))
 
-    @backoff.on_exception(backoff.expo, (SSLError, ConnectionError), max_tries=MAX_RETRIES, on_backoff=_backoff_handler)
+    @backoff.on_exception(backoff.expo, (SSLError, urllib3_SSLError, ConnectionError), max_tries=MAX_RETRIES,
+                          on_backoff=_backoff_handler)
     def get_job_status(self, job_id: str):
         endpoint = f'/services/data/v{self.api_version}/jobs/ingest/{job_id}'
         return self.get(endpoint)
 
-    @backoff.on_exception(backoff.expo, (SSLError, ConnectionError), max_tries=MAX_RETRIES, on_backoff=_backoff_handler)
+    @backoff.on_exception(backoff.expo, (SSLError, urllib3_SSLError, ConnectionError), max_tries=MAX_RETRIES,
+                          on_backoff=_backoff_handler)
     def download_results(self, job_id: str, result_path: str, results_type: str):
         endpoint = f'/services/data/v{self.api_version}/jobs/ingest/{job_id}/{results_type}'
         res = self.get_raw(endpoint, stream=True)
@@ -257,7 +261,8 @@ class SalesforceClient(HttpClient):
                 to_fetch.append({"label": sf_object.get('label'), 'value': sf_object.get('name')})
         return to_fetch
 
-    @backoff.on_exception(backoff.expo, (SSLError, ConnectionError), max_tries=MAX_RETRIES, on_backoff=_backoff_handler)
+    @backoff.on_exception(backoff.expo, (SSLError, urllib3_SSLError, ConnectionError), max_tries=MAX_RETRIES,
+                          on_backoff=_backoff_handler)
     def create_job_v1(self, object_name=None, operation=None, contentType='CSV',
                       concurrency=None, external_id_name=None, pk_chunking=False, assignement_id=None):
         assert (object_name is not None)
@@ -295,7 +300,8 @@ class SalesforceClient(HttpClient):
 
         return job_id
 
-    @backoff.on_exception(backoff.expo, (SSLError, ConnectionError), max_tries=MAX_RETRIES, on_backoff=_backoff_handler)
+    @backoff.on_exception(backoff.expo, (SSLError, urllib3_SSLError, ConnectionError), max_tries=MAX_RETRIES,
+                          on_backoff=_backoff_handler)
     def close_job_v1(self, job_id):
         self.bulk1_client.close_job(job_id)
 
@@ -310,11 +316,13 @@ class SalesforceClient(HttpClient):
         logging.info(f"Batch status: {status}")
         return self.bulk1_client.get_batch_results(batch)
 
-    @backoff.on_exception(backoff.expo, (SSLError, ConnectionError), max_tries=MAX_RETRIES, on_backoff=_backoff_handler)
+    @backoff.on_exception(backoff.expo, (SSLError, urllib3_SSLError, ConnectionError), max_tries=MAX_RETRIES,
+                          on_backoff=_backoff_handler)
     def retry_post_batch_v1(self, job, csv_iter):
         return self.bulk1_client.post_batch(job, csv_iter)
 
-    @backoff.on_exception(backoff.expo, (SSLError, ConnectionError), max_tries=MAX_RETRIES, on_backoff=_backoff_handler)
+    @backoff.on_exception(backoff.expo, (SSLError, urllib3_SSLError, ConnectionError), max_tries=MAX_RETRIES,
+                          on_backoff=_backoff_handler)
     def retry_wait_for_batch_v1(self, job, batch):
         self.bulk1_client.wait_for_batch(job, batch)
 
