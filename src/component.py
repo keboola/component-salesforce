@@ -203,20 +203,20 @@ class Component(ComponentBase):
 
         if buffer_manager.unprocessed_buffers():
             self.write_unprocessed_buffers(buffer_manager, str(run_error))
-            logging.warning(f"{buffer_manager.unprocessed_buffers()} "
+            logging.warning(f"{len(buffer_manager.unprocessed_buffers())} "
                             f"buffers were not processed will be written to the result table with error message")
 
         if run_error:
             logging.warning(
                 f"Process was unsuccessful!"
-                f"- {operation}ed {buffer_manager.total_success()} records,"
+                f" - {operation}ed {buffer_manager.total_success()} records,"
                 f" {buffer_manager.total_error()} errors occurred,"
                 f" more details in {buffer_manager.result_table.full_path}")
             raise UserException(run_error)
         else:
             logging.info(
                 f"Process was successful."
-                f"- {operation}ed {buffer_manager.total_success()} records,"
+                f" - {operation}ed {buffer_manager.total_success()} records,"
                 f" {buffer_manager.total_error()} errors occurred,"
                 f" more details in {buffer_manager.result_table.full_path}")
 

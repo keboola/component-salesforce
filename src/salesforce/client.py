@@ -216,6 +216,7 @@ class SalesforceClient(HttpClient):
             raise BulkApiError(result.text, result.status_code)
         return result.json(object_pairs_hook=OrderedDict)
 
+    @backoff.on_exception(backoff.expo, (SSLError, ConnectionError), max_tries=MAX_RETRIES, on_backoff=_backoff_handler)
     def upload_data(self, content_url: str, input_stream: Iterable):
         logging.debug(f"uploading data to {content_url}")
         headers = {'Content-Type': 'text/csv'}
