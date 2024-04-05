@@ -43,7 +43,7 @@ class InterimBuffer:
     def add_job(self, job_id):
         self.job_id = job_id
         new_file_name = f'{self.id}_{self.job_id}'
-        logging.debug(f'Rename buffer file to {new_file_name}')
+        logging.debug(f'Added job id to a buffer and rename buffer file to {new_file_name}')
         new_file_path = os.path.join(os.path.dirname(self.file_path), new_file_name)
         os.rename(self.file_path, new_file_path)
         self.file_name = new_file_name
@@ -65,7 +65,8 @@ class InterimBuffer:
     def process_done(self):
         self.processed = True
         logging.debug(f"Buffer {self.id} processed. Removing buffer file {self.file_path}")
-        os.remove(self.file_path)
+        if os.path.exists(self.file_path):
+            os.remove(self.file_path)
 
     def finish_job(self, result):
         self.finished_job = True
