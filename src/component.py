@@ -103,6 +103,8 @@ def skip_first_line(file_path: str) -> list[str]:
 
 def write_table_manifest(table: TableDefinition):
     manifest = table.get_manifest_dictionary()
+    # TODO why it is not in the library?
+    manifest['incremental'] = False
     if 'queuev2' in os.environ.get('KBC_PROJECT_FEATURE_GATES', ''):
         manifest['write_always'] = True
     else:
