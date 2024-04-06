@@ -215,9 +215,9 @@ class Component(ComponentBase):
         if run_error:
             raise UserException(run_error)
         elif buffer_manager.total_error() > 0:
-            raise UserException("Process was unsuccessful")
+            raise UserException("Process was unsuccessful due to errors in the result table. Check the result table.")
         else:
-            logging.info("Process was successful")
+            logging.info("Process was successful.")
 
     def _get_login_method(self) -> LoginType:
         if self.configuration.oauth_credentials:
