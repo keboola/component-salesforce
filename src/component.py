@@ -208,19 +208,16 @@ class Component(ComponentBase):
             logging.warning(f"{buffer_manager.total_unprocessed_buffers()} "
                             f"buffers were not processed will be written to the result table with error message")
 
+        logging.info(f"{operation}ed {buffer_manager.total_success()} records,"
+                     f" {buffer_manager.total_error()} errors occurred,"
+                     f" more details in {buffer_manager.result_table.full_path}")
+
         if run_error:
-            logging.warning(
-                f"Process was unsuccessful!"
-                f" - {operation}ed {buffer_manager.total_success()} records,"
-                f" {buffer_manager.total_error()} errors occurred,"
-                f" more details in {buffer_manager.result_table.full_path}")
             raise UserException(run_error)
+        elif buffer_manager.total_error() > 0:
+            raise UserException("Process was unsuccessful")
         else:
-            logging.info(
-                f"Process was successful."
-                f" - {operation}ed {buffer_manager.total_success()} records,"
-                f" {buffer_manager.total_error()} errors occurred,"
-                f" more details in {buffer_manager.result_table.full_path}")
+            logging.info("Process was successful")
 
     def _get_login_method(self) -> LoginType:
         if self.configuration.oauth_credentials:
