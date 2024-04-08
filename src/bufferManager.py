@@ -91,6 +91,9 @@ class InterimBufferManager:
     def finished_jobs(self):
         return sum(1 for buffer in self.buffers if buffer.finished_job)
 
+    def unfinished_jobs(self):
+        return [buffer for buffer in self.buffers if not buffer.finished_job]
+
     def total_success(self):
         return sum(buffer.success for buffer in self.buffers)
 

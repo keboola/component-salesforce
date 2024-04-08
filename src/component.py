@@ -321,7 +321,7 @@ class Component(ComponentBase):
         logging.info(f"Created and uploaded {job_count} jobs, waiting for the finish")
         finished_jobs = 0
         while job_count > finished_jobs:
-            for buffer in buffer_manager.buffers:
+            for buffer in buffer_manager.unfinished_jobs():
                 sleep(2)
                 actual_job = self.client.get_job_status(buffer.job_id)
                 if self.client.is_job_done(actual_job):
