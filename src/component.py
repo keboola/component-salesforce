@@ -19,7 +19,7 @@ from simple_salesforce.exceptions import SalesforceAuthenticationFailed
 
 from salesforce.client import SalesforceClient, LineEnding
 
-from bufferManager import DataChunkBufferManager, DataChunkBuffer
+from buffer_management import DataChunkBufferManager, DataChunkBuffer
 
 KEY_ADVANCED_OPTIONS = 'advanced_options'
 
