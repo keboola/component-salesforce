@@ -221,14 +221,13 @@ class SalesforceClient(HttpClient):
     def upload_data(self, content_url: str, input_stream: Iterable):
         logging.debug(f"uploading data to {content_url}")
         headers = {'Content-Type': 'text/csv'}
-
-        logging.debug(self.put_raw(endpoint_path=content_url, headers=headers, data=input_stream))
+        self.put_raw(endpoint_path=content_url, headers=headers, data=input_stream)
 
     @backoff.on_exception(backoff.expo, (SSLError, urllib3_SSLError, ConnectionError), max_tries=MAX_RETRIES,
                           on_backoff=_backoff_handler)
     def mark_upload_job_complete(self, job_id: str):
         endpoint = f'/services/data/v{self.api_version}/jobs/ingest/{job_id}'
-        logging.debug(self.patch(endpoint, json={"state": "UploadComplete"}))
+        self.patch(endpoint, json={"state": "UploadComplete"})
 
     @backoff.on_exception(backoff.expo, (SSLError, urllib3_SSLError, ConnectionError), max_tries=MAX_RETRIES,
                           on_backoff=_backoff_handler)

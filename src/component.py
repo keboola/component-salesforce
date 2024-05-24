@@ -19,7 +19,7 @@ from simple_salesforce.exceptions import SalesforceAuthenticationFailed
 
 from salesforce.client import SalesforceClient, LineEnding
 
-from bufferManager import InterimBufferManager, InterimBuffer
+from bufferManager import DataChunkBufferManager, DataChunkBuffer
 
 KEY_ADVANCED_OPTIONS = 'advanced_options'
 
@@ -194,7 +194,7 @@ class Component(ComponentBase):
                                 f"{len(input_headers)} columns")
 
         result_table = self.create_result_table(input_table.columns, operation, sf_object)
-        buffer_manager = InterimBufferManager(self.data_folder_path, result_table, serial_mode)
+        buffer_manager = DataChunkBufferManager(self.data_folder_path, result_table, serial_mode)
 
         run_error: Exception = None
         try:
@@ -306,7 +306,7 @@ class Component(ComponentBase):
         return chunk_size
 
     def upload_data_bulk2(self, upsert_field_name, sf_object, operation, assignment_id,
-                          buffer_manager: InterimBufferManager):
+                          buffer_manager: DataChunkBufferManager):
         for buffer in buffer_manager.buffers:
             chunk = buffer.get_buffer_data()
             csv_iter = CsvDictsAdapter(iter(chunk))
@@ -331,7 +331,7 @@ class Component(ComponentBase):
                     logging.info(f'{finished_jobs} jobs finished out of {job_count}')
 
     def upload_data_serial(self, upsert_field_name, sf_object, operation, assignment_id,
-                           buffer_manager: InterimBufferManager):
+                           buffer_manager: DataChunkBufferManager):
 
         job_id = self.client.create_job_v1(sf_object, operation, external_id_name=upsert_field_name,
                                            contentType='CSV', concurrency='Serial',
@@ -361,7 +361,7 @@ class Component(ComponentBase):
                 self.write_result_v2(buffer)
 
     @staticmethod
-    def parse_result_v1(buffer: InterimBuffer):
+    def parse_result_v1(buffer: DataChunkBuffer):
         num_errors = 0
         num_success = 0
         for chunk in buffer.result:
@@ -373,7 +373,7 @@ class Component(ComponentBase):
         buffer.error = num_errors
 
     @staticmethod
-    def parse_result_v2(buffer: InterimBuffer):
+    def parse_result_v2(buffer: DataChunkBuffer):
         num_errors = 0
         num_success = 0
         if buffer.result['state'] == 'Failed':
@@ -386,7 +386,7 @@ class Component(ComponentBase):
         buffer.success = num_success
         buffer.error = num_errors
 
-    def write_result_v2(self, buffer: InterimBuffer):
+    def write_result_v2(self, buffer: DataChunkBuffer):
 
         result_table = buffer.result_table
         if buffer.success > 0:
@@ -411,7 +411,7 @@ class Component(ComponentBase):
         os.remove(sf_job_result_file_path)
 
     @staticmethod
-    def write_result_v1(buffer: InterimBuffer):
+    def write_result_v1(buffer: DataChunkBuffer):
         result_table = buffer.result_table
 
         file_path = os.path.join(result_table.full_path, f'{buffer.id}.csv')
@@ -431,7 +431,7 @@ class Component(ComponentBase):
         write_table_manifest(result_table)
 
     @staticmethod
-    def write_unprocessed_buffers(buffer_manager: InterimBufferManager, error_message):
+    def write_unprocessed_buffers(buffer_manager: DataChunkBufferManager, error_message):
         for buffer in buffer_manager.unprocessed_buffers():
             Component.write_buffer(buffer, error_message)
 

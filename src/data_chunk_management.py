@@ -4,7 +4,7 @@ import logging
 from keboola.component.dao import TableDefinition
 
 
-class InterimBuffer:
+class DataChunkBuffer:
     current_id = 0
 
     def __init__(self, manager, chunk):
@@ -22,15 +22,15 @@ class InterimBuffer:
         self.data_folder_path = manager.data_folder_path
         self.serial_mode = manager.serial_mode
         self.processed = False
-        self.id = InterimBuffer._get_id()
+        self.id = DataChunkBuffer._get_id()
         self.file_name = f'{self.id}'
         self.file_path = self._get_temp_file_path()
         self.save(chunk)
 
     @staticmethod
     def _get_id():
-        InterimBuffer.current_id += 1
-        return InterimBuffer.current_id
+        DataChunkBuffer.current_id += 1
+        return DataChunkBuffer.current_id
 
     def _get_temp_folder(self):
         tmp_folder = os.path.join(self.data_folder_path, 'tmp')
@@ -73,7 +73,7 @@ class InterimBuffer:
         self.result = result
 
 
-class InterimBufferManager:
+class DataChunkBufferManager:
     def __init__(self, data_folder, result_table: TableDefinition, serial_mode):
         self.buffers = []
         self.result_table = result_table
@@ -81,7 +81,7 @@ class InterimBufferManager:
         self.serial_mode = serial_mode
 
     def create_buffer(self, chunk):
-        buffer = InterimBuffer(self, chunk)
+        buffer = DataChunkBuffer(self, chunk)
         self.buffers.append(buffer)
         return buffer
 
