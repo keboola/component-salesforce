@@ -246,7 +246,7 @@ class Component(ComponentBase):
             raise UserException("No input table added. Please add an input table")
         elif len(input_tables) > 1:
             raise UserException("Too many input tables added. Please add only one input table")
-        if get_file_row_count(input_tables[0].full_path) < 1:
+        if get_file_row_count(input_tables[0].full_path) < 2:
             logging.info("Input table is empty. Exiting.")
             exit(1)
         return input_tables[0]
