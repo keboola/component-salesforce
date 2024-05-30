@@ -444,7 +444,8 @@ class Component(ComponentBase):
     def write_buffer(buffer, error_message=None):
         """
         Writes buffer to the result table with error message
-        write_table_manifest is called to create a manifest file for the result table in every cases
+        write_table_manifest is called every time to create a new manifest file in case when new columns are added
+        to the result table.
         """
         logging.debug(f"Writing buffer {buffer.id} to the result table")
         result_table = buffer.result_table
@@ -462,7 +463,8 @@ class Component(ComponentBase):
     def create_result_table(self, columns, operation, sf_object) -> TableDefinition:
         """
         Creates a result table with columns defined in the input table and additional columns for the result
-        write_table_manifest is called to create a manifest file for the result table in every cases
+        write_table_manifest is called every time to create a new manifest file in case when new columns are added
+        to the result table.
         """
         fieldnames = ["sf__Id", "sf__Created", "sf__Error", "kbc__Error"]
         fieldnames.extend(columns)
