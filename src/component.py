@@ -158,12 +158,16 @@ class Component(ComponentBase):
 
         input_table = self.get_input_table()
 
+        if not input_table:
+            return
+
         self.print_failed_to_log = params.get(KEY_PRINT_FAILED_TO_LOG, False)
 
         try:
             self.login_to_salesforce()
         except SalesforceAuthenticationFailed as e:
-            raise UserException("Authentication Failed : recheck your username, password, and security token ") from e
+            raise UserException(
+                "Authentication Failed : recheck your username, password, and security token ") from e
 
         sf_object = params.get(KEY_OBJECT)
         operation = params.get(KEY_OPERATION).lower()
@@ -215,7 +219,8 @@ class Component(ComponentBase):
         if run_error:
             raise UserException(run_error)
         elif buffer_manager.total_error() > 0:
-            raise UserException("Process was unsuccessful due to errors in the result table. Check the result table.")
+            raise UserException(
+                "Process was unsuccessful due to errors in the result table. Check the result table.")
         else:
             logging.info("Process was successful.")
 
@@ -247,8 +252,8 @@ class Component(ComponentBase):
         elif len(input_tables) > 1:
             raise UserException("Too many input tables added. Please add only one input table")
         if get_file_row_count(input_tables[0].full_path) < 2:
-            logging.info("Input table is empty. Exiting.")
-            exit(1)
+            logging.warning("Input table is empty, no data to process")
+            return None
         return input_tables[0]
 
     @staticmethod
@@ -437,6 +442,11 @@ class Component(ComponentBase):
 
     @staticmethod
     def write_buffer(buffer, error_message=None):
+        """
+        Writes buffer to the result table with error message
+        write_table_manifest is called every time to create a new manifest file in case when new columns are added
+        to the result table.
+        """
         logging.debug(f"Writing buffer {buffer.id} to the result table")
         result_table = buffer.result_table
         file_path = os.path.join(result_table.full_path, f'{buffer.id}.csv')
@@ -447,10 +457,15 @@ class Component(ComponentBase):
                 row["sf__Error"] = buffer.job_error_message
                 writer.writerow(row)
         buffer.process_done()
-        # TODO: remove when write_always added to the library
+
         write_table_manifest(result_table)
 
     def create_result_table(self, columns, operation, sf_object) -> TableDefinition:
+        """
+        Ensures the result table and its manifest file are created at the beginning of the run.
+        write_table_manifest is called every time to create a new manifest file in case when new columns are added
+        to the result table.
+        """
         fieldnames = ["sf__Id", "sf__Created", "sf__Error", "kbc__Error"]
         fieldnames.extend(columns)
         result_table_name = get_result_table_name(operation, sf_object)
@@ -458,6 +473,8 @@ class Component(ComponentBase):
         result_table = self.create_out_table_definition(name=result_table_name)
         result_table.columns = fieldnames
         os.makedirs(result_table.full_path, exist_ok=True)
+
+        write_table_manifest(result_table)
         return result_table
 
     def set_proxy(self) -> None:
