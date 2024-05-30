@@ -442,6 +442,10 @@ class Component(ComponentBase):
 
     @staticmethod
     def write_buffer(buffer, error_message=None):
+        """
+        Writes buffer to the result table with error message
+        write_table_manifest is called to create a manifest file for the result table if every cases
+        """
         logging.debug(f"Writing buffer {buffer.id} to the result table")
         result_table = buffer.result_table
         file_path = os.path.join(result_table.full_path, f'{buffer.id}.csv')
@@ -452,10 +456,14 @@ class Component(ComponentBase):
                 row["sf__Error"] = buffer.job_error_message
                 writer.writerow(row)
         buffer.process_done()
-        # TODO: remove when write_always added to the library
+
         write_table_manifest(result_table)
 
     def create_result_table(self, columns, operation, sf_object) -> TableDefinition:
+        """
+        Creates a result table with columns defined in the input table and additional columns for the result
+        write_table_manifest is called to create a manifest file for the result table if every cases
+        """
         fieldnames = ["sf__Id", "sf__Created", "sf__Error", "kbc__Error"]
         fieldnames.extend(columns)
         result_table_name = get_result_table_name(operation, sf_object)
@@ -463,6 +471,7 @@ class Component(ComponentBase):
         result_table = self.create_out_table_definition(name=result_table_name)
         result_table.columns = fieldnames
         os.makedirs(result_table.full_path, exist_ok=True)
+
         write_table_manifest(result_table)
         return result_table
 
