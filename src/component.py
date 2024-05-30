@@ -158,66 +158,69 @@ class Component(ComponentBase):
 
         input_table = self.get_input_table()
 
-        self.print_failed_to_log = params.get(KEY_PRINT_FAILED_TO_LOG, False)
+        if input_table:
+            self.print_failed_to_log = params.get(KEY_PRINT_FAILED_TO_LOG, False)
 
-        try:
-            self.login_to_salesforce()
-        except SalesforceAuthenticationFailed as e:
-            raise UserException("Authentication Failed : recheck your username, password, and security token ") from e
+            try:
+                self.login_to_salesforce()
+            except SalesforceAuthenticationFailed as e:
+                raise UserException(
+                    "Authentication Failed : recheck your username, password, and security token ") from e
 
-        sf_object = params.get(KEY_OBJECT)
-        operation = params.get(KEY_OPERATION).lower()
+            sf_object = params.get(KEY_OBJECT)
+            operation = params.get(KEY_OPERATION).lower()
 
-        upsert_field_name = params.get(KEY_UPSERT_FIELD_NAME)
-        if upsert_field_name:
-            upsert_field_name = upsert_field_name.strip()
+            upsert_field_name = params.get(KEY_UPSERT_FIELD_NAME)
+            if upsert_field_name:
+                upsert_field_name = upsert_field_name.strip()
 
-        assignment_id = params.get(KEY_ASSIGNMENT_ID)
-        if assignment_id:
-            assignment_id = assignment_id.strip()
+            assignment_id = params.get(KEY_ASSIGNMENT_ID)
+            if assignment_id:
+                assignment_id = assignment_id.strip()
 
-        logging.info(f"Running {operation} operation with input table to the {sf_object} Salesforce object")
+            logging.info(f"Running {operation} operation with input table to the {sf_object} Salesforce object")
 
-        serial_mode = params.get(KEY_ADVANCED_OPTIONS, {}).get(KEY_SERIAL_MODE, False)
+            serial_mode = params.get(KEY_ADVANCED_OPTIONS, {}).get(KEY_SERIAL_MODE, False)
 
-        replace_string = params.get(KEY_REPLACE_STRING)
-        input_headers = input_table.columns
-        if replace_string:
-            input_table.columns = self.replace_headers(input_headers, replace_string)
+            replace_string = params.get(KEY_REPLACE_STRING)
+            input_headers = input_table.columns
+            if replace_string:
+                input_table.columns = self.replace_headers(input_headers, replace_string)
 
-        if upsert_field_name and upsert_field_name.strip() not in input_headers:
-            raise UserException(
-                f"Upsert field name {upsert_field_name} not in input table with headers {input_headers}")
+            if upsert_field_name and upsert_field_name.strip() not in input_headers:
+                raise UserException(
+                    f"Upsert field name {upsert_field_name} not in input table with headers {input_headers}")
 
-        if operation == "delete" and len(input_headers) != 1:
-            raise UserException("Delete operation should only have one column with id, input table contains "
-                                f"{len(input_headers)} columns")
+            if operation == "delete" and len(input_headers) != 1:
+                raise UserException("Delete operation should only have one column with id, input table contains "
+                                    f"{len(input_headers)} columns")
 
-        result_table = self.create_result_table(input_table.columns, operation, sf_object)
-        buffer_manager = DataChunkBufferManager(self.data_folder_path, result_table, serial_mode)
+            result_table = self.create_result_table(input_table.columns, operation, sf_object)
+            buffer_manager = DataChunkBufferManager(self.data_folder_path, result_table, serial_mode)
 
-        run_error: Exception = None
-        try:
-            self.write_to_salesforce(input_table, upsert_field_name,
-                                     sf_object, operation, assignment_id, serial_mode, buffer_manager)
-        except Exception as ex:
-            run_error = ex
+            run_error: Exception = None
+            try:
+                self.write_to_salesforce(input_table, upsert_field_name,
+                                         sf_object, operation, assignment_id, serial_mode, buffer_manager)
+            except Exception as ex:
+                run_error = ex
 
-        if buffer_manager.total_unprocessed_buffers() > 0:
-            self.write_unprocessed_buffers(buffer_manager, str(run_error))
-            logging.warning(f"{buffer_manager.total_unprocessed_buffers()} "
-                            f"buffers were not processed will be written to the result table with error message")
+            if buffer_manager.total_unprocessed_buffers() > 0:
+                self.write_unprocessed_buffers(buffer_manager, str(run_error))
+                logging.warning(f"{buffer_manager.total_unprocessed_buffers()} "
+                                f"buffers were not processed will be written to the result table with error message")
 
-        logging.info(f"{operation}ed {buffer_manager.total_success()} records,"
-                     f" {buffer_manager.total_error()} errors occurred,"
-                     f" more details in {buffer_manager.result_table.full_path}")
+            logging.info(f"{operation}ed {buffer_manager.total_success()} records,"
+                         f" {buffer_manager.total_error()} errors occurred,"
+                         f" more details in {buffer_manager.result_table.full_path}")
 
-        if run_error:
-            raise UserException(run_error)
-        elif buffer_manager.total_error() > 0:
-            raise UserException("Process was unsuccessful due to errors in the result table. Check the result table.")
-        else:
-            logging.info("Process was successful.")
+            if run_error:
+                raise UserException(run_error)
+            elif buffer_manager.total_error() > 0:
+                raise UserException(
+                    "Process was unsuccessful due to errors in the result table. Check the result table.")
+            else:
+                logging.info("Process was successful.")
 
     def _get_login_method(self) -> LoginType:
         if self.configuration.oauth_credentials:
@@ -247,8 +250,8 @@ class Component(ComponentBase):
         elif len(input_tables) > 1:
             raise UserException("Too many input tables added. Please add only one input table")
         if get_file_row_count(input_tables[0].full_path) < 2:
-            logging.info("Input table is empty. Exiting.")
-            exit(1)
+            logging.warning("Input table is empty, no data to process")
+            return None
         return input_tables[0]
 
     @staticmethod
@@ -458,6 +461,7 @@ class Component(ComponentBase):
         result_table = self.create_out_table_definition(name=result_table_name)
         result_table.columns = fieldnames
         os.makedirs(result_table.full_path, exist_ok=True)
+        write_table_manifest(result_table)
         return result_table
 
     def set_proxy(self) -> None:
