@@ -5,6 +5,8 @@ keboola.http-client
 salesforce_bulk==2.2.0
 simple-salesforce==1.12.5
 requests==2.31.0
-pyOpenSSL==23.2.0
-retry
-backoff
+pyOpenSSL==24.1.0
+retry~=0.9.2
+backoff~=2.2.1
+six~=1.16.0
+urllib3~=2.2.1
