@@ -462,7 +462,7 @@ class Component(ComponentBase):
 
     def create_result_table(self, columns, operation, sf_object) -> TableDefinition:
         """
-        Creates a result table with columns defined in the input table and additional columns for the result
+        Ensures the result table and its manifest file are created at the beginning of the run.
         write_table_manifest is called every time to create a new manifest file in case when new columns are added
         to the result table.
         """
