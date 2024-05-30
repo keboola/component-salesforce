@@ -159,7 +159,6 @@ class Component(ComponentBase):
         input_table = self.get_input_table()
 
         if not input_table:
-            logging.warning("Input table is empty, no data to process")
             return
 
         self.print_failed_to_log = params.get(KEY_PRINT_FAILED_TO_LOG, False)
@@ -253,6 +252,7 @@ class Component(ComponentBase):
         elif len(input_tables) > 1:
             raise UserException("Too many input tables added. Please add only one input table")
         if get_file_row_count(input_tables[0].full_path) < 2:
+            logging.warning("Input table is empty, no data to process")
             return None
         return input_tables[0]
 
