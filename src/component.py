@@ -163,12 +163,6 @@ class Component(ComponentBase):
 
         self.print_failed_to_log = params.get(KEY_PRINT_FAILED_TO_LOG, False)
 
-        try:
-            self.login_to_salesforce()
-        except SalesforceAuthenticationFailed as e:
-            raise UserException(
-                "Authentication Failed : recheck your username, password, and security token ") from e
-
         sf_object = params.get(KEY_OBJECT)
         operation = params.get(KEY_OPERATION).lower()
 
@@ -204,6 +198,9 @@ class Component(ComponentBase):
         try:
             self.write_to_salesforce(input_table, upsert_field_name,
                                      sf_object, operation, assignment_id, serial_mode, buffer_manager)
+        except SalesforceAuthenticationFailed as e:
+            run_error = UserException(f"Authentication Failed: recheck your username, password, and security token. "
+                                      f"Exception detail: {e}")
         except Exception as ex:
             run_error = ex
 
@@ -219,8 +216,7 @@ class Component(ComponentBase):
         if run_error:
             raise UserException(run_error)
         elif buffer_manager.total_error() > 0:
-            raise UserException(
-                "Process was unsuccessful due to errors in the result table. Check the result table.")
+            raise UserException("Process was unsuccessful due to errors in the result table. Check the result table.")
         else:
             logging.info("Process was successful.")
 
@@ -282,6 +278,8 @@ class Component(ComponentBase):
                 chunk.append(item)
         if chunk:
             buffer_manager.create_buffer(chunk)
+        logging.debug(
+            f"Input data ({buffer_manager.total_rows()} rows) split to {len(buffer_manager.buffers)} chunks")
 
     def write_to_salesforce(self, input_table: TableDefinition, upsert_field_name,
                             sf_object, operation, assignment_id, serial_mode, buffer_manager):
@@ -289,12 +287,13 @@ class Component(ComponentBase):
         input_file_reader = self.get_input_file_data(input_table)
         chunk_size = self.define_chunk_size(input_table, serial_mode)
 
-        logging.info(f'Batch size set to: {chunk_size:,}')
         self.create_buffers(input_file_reader, chunk_size, buffer_manager)
-        logging.info(
-            f"Input data ({buffer_manager.total_rows()} rows) split to {len(buffer_manager.buffers)} chunks")
+
+        # Login needs to be here for possibility write all unprocessed buffers
+        self.login_to_salesforce()
+
         if serial_mode:
-            logging.warning("Running in serial mode (fall back to Bulk API v1)")
+            logging.info("Running in serial mode (fall back to Bulk API v1)")
             return self.upload_data_serial(upsert_field_name, sf_object, operation, assignment_id, buffer_manager)
         else:
             logging.info("Running batches in parallel (Bulk 2.0)")
@@ -308,6 +307,8 @@ class Component(ComponentBase):
             chunk_size = batch_size_override or MAX_SERIAL_BATCH_SIZE
         else:
             chunk_size = batch_size_override or estimate_chunk_size(input_table.full_path)
+
+        logging.info(f'Batch size set to: {chunk_size:,}')
         return chunk_size
 
     def upload_data_bulk2(self, upsert_field_name, sf_object, operation, assignment_id,
