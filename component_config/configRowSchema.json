@@ -14,11 +14,11 @@
       "propertyOrder": 10,
       "options": {
         "async": {
-          "label": "Re-load Objects",
+          "label": "Reload objects",
           "action": "loadObjects"
         }
       },
-      "description": "Salesforce object eg. Contact"
+      "description": "Salesforce object, e.g., Contact."
     },
     "operation": {
       "title": "Operation",
@@ -35,13 +35,13 @@
     "replace_string": {
       "title": "Replace string",
       "type": "string",
-      "description": "Set the string that should be replaced for a dot (\".\") in all column names that contain the replace. e.g. with replace string set to __ the column contact__address will be sent to salesforce as contact.address.",
+      "description": "Set the string that should replace a dot (\".\") in all column names that contain the replacement string. For example, with the replace string set to __, the column contact__address will be sent to Salesforce as contact.address.",
       "propertyOrder": 40
     },
     "upsert_field_name": {
       "title": "External ID",
       "type": "string",
-      "description": "Specify which column in the input table is an External ID for the upsert operation. Values in the External ID column must be unique. More information on importing with External IDs can be found in <a href='https://help.salesforce.com/s/articleView?id=sf.faq_import_general_what_is_an_external.htm&type=5'>Salesforce documentation</a>.",
+      "description": "Specify which column in the input table is used an External ID for the upsert operation. Values in the External ID column must be unique. More information on importing with External IDs can be found in the <a href='https://help.salesforce.com/s/articleView?id=sf.faq_import_general_what_is_an_external.htm&type=5'>Salesforce documentation</a>.",
       "options": {
         "dependencies": {
           "operation": "Upsert"
@@ -50,9 +50,9 @@
       "propertyOrder": 50
     },
     "assignment_id": {
-      "title": "Assignment Id",
+      "title": "Assignment ID",
       "type": "string",
-      "description": "ID of Lead <a href =\"https://help.salesforce.com/s/articleView?id=sf.customize_leadrules.htm&language=en_US&type=5\">Assignment rule</a> you want to run after import. <a href=\"https://help.salesforce.com/s/articleView?id=000381858&type=1\">See how to find it</a>.",
+      "description": "The ID of the Lead <a href =\"https://help.salesforce.com/s/articleView?id=sf.customize_leadrules.htm&language=en_US&type=5\">Assignment Rule</a> you want to apply after import. <a href=\"https://help.salesforce.com/s/articleView?id=000381858&type=1\">See how to find it</a>.",
       "propertyOrder": 60
     },
     "advanced_options": {
@@ -61,16 +61,16 @@
       "propertyOrder": 65,
       "properties": {
         "serial_mode": {
-          "title": "Serial Mode",
-          "description": "Run batches in serial mode. This is useful to prevent locks on objects, but will increase run time significantly.",
+          "title": "Serial mode",
+          "description": "Run batches in serial mode. This helps prevent locks on objects but significantly increases run time.",
           "type": "boolean",
           "required": true,
           "default": false,
           "propertyOrder": 1
         },
         "override_batch_size": {
-          "title": "Batch Size override",
-          "description": "Toggle if you wish to override the batch size. Otherwise, the batch size will be estimated based on the data size. Manual setup of batch size is not recommended.",
+          "title": "Batch size override",
+          "description": "Enable this option to override the batch size. If disabled, the batch size is estimated based on data size. Manual batch size adjustment is not recommended.",
           "type": "boolean",
           "format": "checkbox",
           "default": false,
@@ -83,8 +83,8 @@
           }
         },
         "batch_size": {
-          "title": "Batch Size",
-          "description": "Batch size. In serial mode (max 10 000), in standard mode the limit is 100MB. Change this to lower value if you experience connection errors. It is not recommended",
+          "title": "Batch size",
+          "description": "Defines the batch size. The maximum is 10,000 in serial mode, while in standard mode, the limit is 100MB. Reduce this value if you experience connection errors. Manual adjustment is not recommended.",
           "type": "integer",
           "minimum": 1,
           "default": 2500,
