@@ -1,15 +1,17 @@
 # Salesforce Writer
 =============
 
-The component takes files from in/tables directory and insert/upsert/update/delete appropriate records. The input table
-must have a header with field names, which has to exist in Salesforce. ID column is used to identify record which will
-be updated. When inserting records all required fields has to be filled in.
+The component takes files from the `in/tables` directory and inserts, upserts, updates, or deletes the corresponding records in Salesforce. The input table
+must have a header with field names that exist in Salesforce. The ID column is used to identify which record will
+be updated. When inserting records, all required fields must be filled in.
 
 **Important Notes:**
-- The process can fail on any records (due to missing required field or too large string) and this specific record will not be inserted/updated/upserted/deleted
-- There is no way how to rollback this transaction, so you have to carefully check the log each time
-- It is recommended to include a column with external IDs and based on them do upsert later
-- External IDs will also save you from duplicated records when running insert several times
+- The process may fail for some records due to reasons such as missing required fields or exceeding string length limits
+- Any record that fails will not be inserted, updated, upserted, or deleted
+- There is no way to roll back this transaction, so it is essential to carefully check the logs after each run
+- It is recommended to include a column with external IDs, allowing you to perform upserts later
+- External IDs also help prevent duplicated records when running inserts multiple times
+
 
 **Table of contents:**
 
@@ -50,35 +52,35 @@ Configuration
 Authorization configuration
 ---------------------------
 
-- User Name (#username) - [REQ] your user name, when exporting data from sandbox don't forget to add .sandboxname at the end
-- Password (#password) - [REQ] your password
-- Security Token (#security_token) - [REQ] your security token, don't forget it is different for sandbox
-- Sandbox (sandbox) - [REQ] true when you want to push data to sandbox
-- Use Proxy (use_proxy) - [OPT] Section where you can configure https proxy
+- User Name (#username) - [REQ] Your username. When exporting data from a sandbox, don't forget to add `.sandboxname` at the end
+- Password (#password) - [REQ] Your password
+- Security Token (#security_token) - [REQ] Your security token. ***Note:** The security token is different for sandbox environments*
+- Sandbox (sandbox) - [REQ] Set to `true` when pushing data to a sandbox
+- Use Proxy (use_proxy) - [OPT] Section for configuring an HTTPS proxy
   - Proxy Server (proxy_server) - [REQ if Use Proxy is selected] HTTPS Proxy Server Address
   - Proxy Port (port) - [REQ] Proxy Server Port
   - Proxy Username (username) - [OPT] Proxy Server Username
   - Proxy Password (#password) - [OPT] Proxy Server Password
-  - Use HTTP proxy for HTTPS (use_http_proxy_for_https) - [OPT] This is a hidden configuration option for a type of HTTP proxy that also handles HTTPS.
+  - Use HTTP proxy for HTTPS (use_http_proxy_for_https) - [OPT] A hidden configuration option for an HTTP proxy that also handles HTTPS
 
 Row configuration
 ---------------
 
-- Object (object) - [REQ] name of object you wish to perform the operation on
-- Upsert Field (upsertField) - [REQ for upsert] required when the operation is upsert, in case you have no external ID, you must set it up, or use insert and update operations separately to perform the upsert.
-- Operation (operation) - [REQ] specify the operation you wish to do. Insert/Upsert/Update/Delete are supported.
-- Serial Mode (serialMode) - [OPT] true if you wish to run the import in serial mode.
-- Assignment Rule ID (assignment_rule_id) - [OPT] ID of Lead [Assignment rule](https://help.salesforce.com/s/articleView?id=sf.customize_leadrules.htm&language=en_US&type=5) you want to run after import.
-- Replace String (replaceString) - [OPT] string to be replaced in column name for dot, so you can use that column as reference to other record via external id
-- Fail on Error (fail_on_error) - [OPT] if you want the job to fail on any error, set this to true and the job will fail if more than 0 errors occur during the execution.
+- Object (object) - [REQ] The name of the object on which you want to perform the operation
+- Upsert Field (upsertField) - [REQ for upsert] Required when performing an upsert operation. If you do not have an external ID, you must either create one, or use separate insert and update operations to achieve the same result
+- Operation (operation) - [REQ] Specifies the operation to perform. Supported operations: Insert, Upsert, Update, Delete
+- Serial Mode (serialMode) - [OPT] Set to `true` if you want to run the import in serial mode
+- Assignment Rule ID (assignment_rule_id) - [OPT] The ID of the Lead [Assignment Rule](https://help.salesforce.com/s/articleView?id=sf.customize_leadrules.htm&language=en_US&type=5) you want to apply after import
+- Replace String (replaceString) - [OPT] A string that replaces dots in column names, allowing the column to be used as a reference to another record via an external ID
 
 **Important Notes:**
-- When inserting you cannot specify ID field
-- When updating the ID field in CSV file is required
-- When deleting, keep in mind that Salesforce's recycle bin can take less records than you are trying to delete, so they will be hard deleted
-- When deleting, the CSV file must contain only ID field
+- When inserting, you cannot specify the ID field
+- When updating, the ID field must be present in the CSV file
+- When deleting, keep in mind that Salesforce's recycle bin has a storage limit. If more records are deleted than the bin can hold, they will be hard deleted
+- When deleting, the CSV file must contain only the ID field
 
-**Note:** The component processes all records on the input and outputs tables containing the failed records with reason of failure. The table names are constructed as `{OBJECT_NAME}_{LOAD_TYPE}_unsuccessful` e.g. `Contact_upsert_unsuccessful`
+**Note:** The component processes all input records and outputs tables containing failed records along with the reason
+for failure. The table names are constructed as `{OBJECT_NAME}_{LOAD_TYPE}_unsuccessful`, e.g., `Contact_upsert_unsuccessful`
 
 Sample Configuration
 =============

@@ -1,1 +1,1 @@
-Upload data to Salesforce via Bulk API 2.0. Supports INSERT, UPDATE, UPSERT and DELETE operations.
+Upload data to Salesforce using Bulk API 2.0. This component supports the following operations: INSERT, UPDATE, UPSERT, and DELETE.
