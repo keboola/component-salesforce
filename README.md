@@ -7,7 +7,7 @@ be updated. When inserting records, all required fields must be filled in.
 
 **Important Notes:**
 - The process may fail for some records due to reasons such as missing required fields or exceeding string length limits
-- Any record that fails will not be inserted, updated, upserted, or deleted
+- Failed records are stored in output tables with detailed error information (see [Output](#output) section)
 - There is no way to roll back this transaction, so it is essential to carefully check the logs after each run
 - It is recommended to include a column with external IDs, allowing you to perform upserts later
 - External IDs also help prevent duplicated records when running inserts multiple times
@@ -79,7 +79,10 @@ Row configuration
 - When deleting, keep in mind that Salesforce's recycle bin has a storage limit. If more records are deleted than the bin can hold, they will be hard deleted
 - When deleting, the CSV file must contain only the ID field
 
-**Note:** The component processes all input records and outputs tables containing failed records along with the reason
+Output
+======
+
+The component processes all input records and outputs tables containing failed records along with the reason
 for failure. The table names are constructed as `{OBJECT_NAME}_{LOAD_TYPE}_unsuccessful`, e.g., `Contact_upsert_unsuccessful`
 
 Sample Configuration
@@ -112,12 +115,6 @@ Sample Configuration
   "action": "run"
 }
 ```
-
-Output
-======
-
-The component will process all records and create output tables for failed records with the naming convention:
-`{OBJECT_NAME}_{LOAD_TYPE}_unsuccessful` e.g. `Contact_upsert_unsuccessful`
 
 Development
 -----------
