@@ -19,6 +19,7 @@ be updated. When inserting records, all required fields must be filled in.
 - [Configuration](#configuration)
   - [Authorization configuration](#authorization-configuration)
   - [Row configuration](#row-configuration)
+- [Data Formatting (Null values, Multipick values)](#data-formatting)
 - [Sample Configuration](#sample-configuration)
 - [Output](#output)
 - [Development](#development)
@@ -78,6 +79,20 @@ Row configuration
 - When updating, the ID field must be present in the CSV file
 - When deleting, keep in mind that Salesforce's recycle bin has a storage limit. If more records are deleted than the bin can hold, they will be hard deleted
 - When deleting, the CSV file must contain only the ID field
+
+Data Formatting (Null values, Multipick values)
+===============
+
+Input data must be formatted according to Salesforce field requirements:
+
+**Empty Values:**
+- To send a null value to Salesforce, use `#N/A` in the cell
+
+**Multipick List Fields:**
+- Separate multiple values with semicolons
+- Example: `Value1;Value2;Value3;`
+- Include the trailing semicolon for proper parsing
+- For empty cells, use `#N/A` similarly to example above
 
 Output
 ======
