@@ -39,6 +39,12 @@
       "description": "Set the string that should replace a dot (\".\") in all column names that contain the replacement string. For example, with the replace string set to __, the column contact__address will be sent to Salesforce as contact.address.",
       "propertyOrder": 40
     },
+    "polymorphic_replace_string": {
+      "title": "Polymorphic replace string",
+      "type": "string",
+      "description": "Set the string that should replace a colon (\":\") in all column names. Used for Salesforce polymorphic relationship fields, e.g. Lead:Who.Email. Must not overlap with Replace string (neither sentinel may be a substring of the other).",
+      "propertyOrder": 41
+    },
     "upsert_field_name": {
       "title": "External ID",
       "type": "string",

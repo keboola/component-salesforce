@@ -36,6 +36,7 @@ KEY_SANDBOX = "sandbox"
 
 KEY_OBJECT = "sf_object"
 KEY_REPLACE_STRING = "replace_string"
+KEY_POLYMORPHIC_REPLACE_STRING = "polymorphic_replace_string"
 KEY_OPERATION = "operation"
 KEY_ASSIGNMENT_ID = "assignment_id"
 KEY_UPSERT_FIELD_NAME = "upsert_field_name"
@@ -179,9 +180,22 @@ class Component(ComponentBase):
         serial_mode = params.get(KEY_ADVANCED_OPTIONS, {}).get(KEY_SERIAL_MODE, False)
 
         replace_string = params.get(KEY_REPLACE_STRING)
+        polymorphic_replace_string = params.get(KEY_POLYMORPHIC_REPLACE_STRING)
+
+        if replace_string and polymorphic_replace_string:
+            if replace_string in polymorphic_replace_string or polymorphic_replace_string in replace_string:
+                raise UserException(
+                    f"replace_string ('{replace_string}') and polymorphic_replace_string "
+                    f"('{polymorphic_replace_string}') must not overlap — one cannot be a "
+                    f"substring of the other, or column headers will be rewritten incorrectly."
+                )
+
         input_headers = input_table.columns
+        if polymorphic_replace_string:
+            input_headers = self.replace_headers(input_headers, polymorphic_replace_string, target=":")
         if replace_string:
-            input_table.columns = self.replace_headers(input_headers, replace_string)
+            input_headers = self.replace_headers(input_headers, replace_string, target=".")
+        input_table.columns = input_headers
 
         if upsert_field_name and upsert_field_name.strip() not in input_headers:
             raise UserException(
@@ -253,9 +267,8 @@ class Component(ComponentBase):
         return input_tables[0]
 
     @staticmethod
-    def replace_headers(input_headers, replace_string):
-        input_headers = [header.replace(replace_string, ".") for header in input_headers]
-        return input_headers
+    def replace_headers(input_headers, replace_string, target="."):
+        return [header.replace(replace_string, target) for header in input_headers]
 
     @staticmethod
     def get_input_file_data(input_table: TableDefinition) -> Iterator[dict]:
