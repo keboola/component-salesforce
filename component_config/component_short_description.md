@@ -1,1 +1,1 @@
-A customer relationship management (CRM) service that helps businesses manage interactions with customers.
+Writes records to Salesforce objects.
