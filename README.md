@@ -73,6 +73,7 @@ Row configuration
 - Serial Mode (serialMode) - [OPT] Set to `true` if you want to run the import in serial mode
 - Assignment Rule ID (assignment_rule_id) - [OPT] The ID of the Lead [Assignment Rule](https://help.salesforce.com/s/articleView?id=sf.customize_leadrules.htm&language=en_US&type=5) you want to apply after import
 - Replace String (replaceString) - [OPT] A string that replaces dots in column names, allowing the column to be used as a reference to another record via an external ID
+- Polymorphic Replace String (polymorphicReplaceString) - [OPT] A string that replaces colons in column names, enabling [polymorphic relationship fields](https://developer.salesforce.com/docs/atlas.en-us.api_asynch.meta/api_asynch/relationship_fields_in_a_header_row__2_0.htm) (e.g. `Lead:Who.Email`). When both replace strings are used, the polymorphic (colon) replacement runs first, then the dot replacement. The two sentinels must not overlap (neither can be a substring of the other)
 
 **Important Notes:**
 - When inserting, you cannot specify the ID field

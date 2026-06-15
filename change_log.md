@@ -1,3 +1,9 @@
+**0.2.0**
+
+- add optional `polymorphic_replace_string` config field for colon replacement in column names, enabling Salesforce polymorphic relationship fields (e.g. `Lead:Who.Email`)
+- reject overlapping `replace_string` / `polymorphic_replace_string` sentinels with a clear error
+- add unit tests for header replacement logic
+
 **0.1.1**
 
 - fix requirements
