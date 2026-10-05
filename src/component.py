@@ -60,7 +60,16 @@ LOG_LIMIT = 15
 MAX_INGEST_JOB_FILE_SIZE = 100 * 1024 * 1024
 MAX_SERIAL_BATCH_SIZE = 2500
 
-DEFAULT_API_VERSION = "40.0"
+SECURITY_TOKEN_DEPRECATION_WARNING = (
+    "The login method \"Security token with username and password\" uses the Salesforce SOAP API login() call. "
+    "Salesforce retires login() in the Summer '27 release, and it is switched off by default in orgs created in "
+    "Winter '26 or later. Change the login method to \"Connected app OAuth 2.0 client credentials\" to keep this "
+    "configuration working. See the component documentation for the migration steps.")
+
+DEFAULT_API_VERSION = "64.0"
+# Salesforce retired API versions 21.0-30.0 (Summer '25). The published configuration schema
+# offers 31.0 and higher, but configurations saved earlier can still hold a retired value.
+MIN_SUPPORTED_API_VERSION = 31.0
 
 
 class LoginType(str, Enum):
@@ -71,6 +80,33 @@ class LoginType(str, Enum):
     @classmethod
     def list(cls):
         return list(map(lambda c: c.value, cls))
+
+
+def resolve_api_version(raw_version) -> str:
+    """Return the Salesforce API version to use.
+
+    Salesforce retired API versions 21.0-30.0. A configuration saved before those versions were
+    removed from the schema still holds the retired value, and every call made with it fails.
+    Such a value is replaced with DEFAULT_API_VERSION and the replacement is logged.
+    A value that is not a number is kept, so that Salesforce reports the problem itself.
+    """
+    if raw_version is None or str(raw_version).strip() == "":
+        return DEFAULT_API_VERSION
+
+    raw_version = str(raw_version).strip()
+    try:
+        numeric_version = float(raw_version)
+    except ValueError:
+        return raw_version
+
+    if numeric_version < MIN_SUPPORTED_API_VERSION:
+        logging.warning(
+            f"The configured Salesforce API version {raw_version} is retired by Salesforce and no longer works. "
+            f"Version {DEFAULT_API_VERSION} is used instead. "
+            f"Set a supported API version in the configuration to remove this warning.")
+        return DEFAULT_API_VERSION
+
+    return raw_version
 
 
 def estimate_chunk_size(csv_path: str) -> int:
@@ -131,22 +167,22 @@ class Component(ComponentBase):
             self.client = SalesforceClient(consumer_key=self.configuration.oauth_credentials.appKey,
                                            consumer_secret=self.configuration.oauth_credentials.appSecret,
                                            refresh_token=self.configuration.oauth_credentials.data['refresh_token'],
-                                           api_version=params.get(KEY_API_VERSION, DEFAULT_API_VERSION),
+                                           api_version=resolve_api_version(params.get(KEY_API_VERSION)),
                                            is_sandbox=params.get(KEY_SANDBOX))
         elif login_method == LoginType.SECURITY_TOKEN_LOGIN:
-
+            logging.warning(SECURITY_TOKEN_DEPRECATION_WARNING)
             self.validate_configuration_parameters([KEY_USERNAME, KEY_PASSWORD, KEY_SECURITY_TOKEN])
             self.client = SalesforceClient(legacy_credentials=dict(username=params.get(KEY_USERNAME),
                                                                    password=params.get(KEY_PASSWORD),
                                                                    security_token=params.get(KEY_SECURITY_TOKEN)),
-                                           api_version=params.get(KEY_API_VERSION, DEFAULT_API_VERSION),
+                                           api_version=resolve_api_version(params.get(KEY_API_VERSION)),
                                            is_sandbox=params.get(KEY_SANDBOX))
 
         elif login_method == LoginType.CONNECTED_APP_OAUTH_CC:
             self.validate_configuration_parameters([KEY_CONSUMER_KEY, KEY_CONSUMER_SECRET, KEY_DOMAIN])
             self.client = SalesforceClient(consumer_key=params[KEY_CONSUMER_KEY],
                                            consumer_secret=params[KEY_CONSUMER_SECRET],
-                                           api_version=params.get(KEY_API_VERSION, DEFAULT_API_VERSION),
+                                           api_version=resolve_api_version(params.get(KEY_API_VERSION)),
                                            is_sandbox=params.get(KEY_SANDBOX),
                                            domain=params[KEY_DOMAIN])
 

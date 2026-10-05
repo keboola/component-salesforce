@@ -15,6 +15,7 @@ be updated. When inserting records, all required fields must be filled in.
 
 **Table of contents:**
 
+- [Login methods](#login-methods)
 - [Prerequisites](#prerequisites)
 - [Configuration](#configuration)
   - [Authorization configuration](#authorization-configuration)
@@ -24,6 +25,41 @@ be updated. When inserting records, all required fields must be filled in.
 - [Output](#output)
 - [Development](#development)
 - [Integration](#integration)
+
+Login methods
+=============
+
+The component supports two login methods.
+
+**Connected app OAuth 2.0 client credentials (recommended).** The component asks Salesforce for an
+access token with the OAuth 2.0 client credentials flow. Use this method for new configurations.
+
+**Security token with username and password (deprecated).** The component signs in with the SOAP API
+`login()` call. Salesforce retires `login()` in the Summer '27 release, and Salesforce switches it off
+by default in orgs created in Winter '26 or later. Configurations that use this method can stop working.
+
+How to migrate a configuration to the connected app method:
+
+1. In Salesforce Setup, create a Connected App (or an External Client App) and enable the OAuth
+   client credentials flow for it.
+2. Select a run-as user for the flow. That user needs the permissions to write the objects you load.
+3. Copy the consumer key and the consumer secret of the app.
+4. In the component configuration, set **Login method** to *Connected app OAuth 2.0 client credentials*.
+5. Fill in **My Domain URL** (for example `my-domain.my.salesforce.com`), **Consumer key** and
+   **Consumer secret**.
+6. Run **Test connection**, then run the configuration.
+
+Salesforce documentation:
+[login() | SOAP API Developer Guide](https://developer.salesforce.com/docs/platform/api/guide/sforce-api-calls-login.html),
+[OAuth 2.0 client credentials flow](https://help.salesforce.com/s/articleView?id=sf.remoteaccess_oauth_client_credentials_flow.htm&type=5).
+
+API version
+-----------
+
+Salesforce retires old API versions. Versions 21.0 to 30.0 are retired, and versions 31.0 to 40.0
+become unsupported in the Summer '27 release. A configuration that holds a retired version fails.
+The component replaces a stored version below 31.0 with the current default and writes a warning to
+the job log. A configuration with no API version set also uses the current default.
 
 Prerequisites
 =============
@@ -53,10 +89,15 @@ Configuration
 Authorization configuration
 ---------------------------
 
-- User Name (#username) - [REQ] Your username. When exporting data from a sandbox, don't forget to add `.sandboxname` at the end
-- Password (#password) - [REQ] Your password
-- Security Token (#security_token) - [REQ] Your security token. ***Note:** The security token is different for sandbox environments*
-- Sandbox (sandbox) - [REQ] Set to `true` when pushing data to a sandbox
+- Login method (login_method) - [REQ] `security_token` (deprecated) or `connected_app_oauth_cc` (recommended). See [Login methods](#login-methods).
+- API version (api_version) - [OPT] The Salesforce API version. A stored version below 31.0 is replaced with the current default.
+- User Name (#username) - [REQ for `security_token`] Your username. When exporting data from a sandbox, don't forget to add `.sandboxname` at the end
+- Password (#password) - [REQ for `security_token`] Your password
+- Security Token (#security_token) - [REQ for `security_token`] Your security token. ***Note:** The security token is different for sandbox environments*
+- Sandbox (sandbox) - [OPT, `security_token` only] Set to `true` when pushing data to a sandbox
+- My Domain URL (domain) - [REQ for `connected_app_oauth_cc`] For example `my-domain.my.salesforce.com`
+- Consumer key (consumer_key) - [REQ for `connected_app_oauth_cc`] Connected app consumer key
+- Consumer secret (#consumer_secret) - [REQ for `connected_app_oauth_cc`] Connected app consumer secret
 - Use Proxy (use_proxy) - [OPT] Section for configuring an HTTPS proxy
   - Proxy Server (proxy_server) - [REQ if Use Proxy is selected] HTTPS Proxy Server Address
   - Proxy Port (port) - [REQ] Proxy Server Port

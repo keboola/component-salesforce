@@ -18,12 +18,12 @@
       ],
       "options": {
         "enum_titles": [
-          "Security token with username and password",
-          "Connected app OAuth 2.0 client credentials"
+          "Security token with username and password (deprecated)",
+          "Connected app OAuth 2.0 client credentials (recommended)"
         ]
       },
       "default": "security_token",
-      "description": "Specify the login method to be used.",
+      "description": "Specify the login method to be used. The \"Security token\" method uses the Salesforce SOAP API login() call. Salesforce retires login() in the Summer '27 release, and it is switched off by default in orgs created in Winter '26 or later. Use \"Connected app OAuth 2.0 client credentials\" for new configurations, and migrate existing ones.",
       "propertyOrder": 1
     },
     "username": {
@@ -154,7 +154,7 @@
         "64.0"
       ],
       "default": "64.0",
-      "description": "Specify the API version from which you want to extract data.",
+      "description": "Specify the Salesforce API version to use. Salesforce retires old versions: 21.0 to 30.0 are already retired, and 31.0 to 40.0 become unsupported in the Summer '27 release. Keep this value at a recent version.",
       "propertyOrder": 50
     },
     "proxy": {
