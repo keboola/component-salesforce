@@ -172,8 +172,9 @@ class Component(ComponentBase):
         super().__init__()
         self.print_failed_to_log = False
         params = self.configuration.parameters
-        serial_mode = params.get(KEY_ADVANCED_OPTIONS, {}).get(KEY_SERIAL_MODE, False)
-        api_version = resolve_api_version(params.get(KEY_API_VERSION), serial_mode)
+        # `or {}` also covers advanced_options set to null in a saved configuration.
+        self.serial_mode = bool((params.get(KEY_ADVANCED_OPTIONS) or {}).get(KEY_SERIAL_MODE, False))
+        api_version = resolve_api_version(params.get(KEY_API_VERSION), self.serial_mode)
         login_method = self._get_login_method()
         if login_method == LoginType.CONNECTED_APP_OAUTH_AUTH_CODE:
             # oauth login
@@ -226,7 +227,8 @@ class Component(ComponentBase):
 
         logging.info(f"Running {operation} operation with input table to the {sf_object} Salesforce object")
 
-        serial_mode = params.get(KEY_ADVANCED_OPTIONS, {}).get(KEY_SERIAL_MODE, False)
+        # Resolved in __init__, because the API version floor depends on it.
+        serial_mode = self.serial_mode
 
         replace_string = params.get(KEY_REPLACE_STRING)
         input_headers = input_table.columns
