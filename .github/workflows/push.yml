@@ -57,11 +57,17 @@ jobs:
           # Do not derive the branch name from `git branch --contains`: that command lists EVERY
           # branch that contains the commit, so one open feature branch made the name not match
           # the default branch and the deploy was skipped without any failure (tag 1.0.4).
-          if git merge-base --is-ancestor "$GITHUB_SHA" "refs/remotes/origin/${DEFAULT_BRANCH}"; then
-            is_default_branch=true
-          else
-            is_default_branch=false
-          fi
+          set +e
+          git merge-base --is-ancestor "$GITHUB_SHA" "refs/remotes/origin/${DEFAULT_BRANCH}"
+          rc=$?
+          set -e
+          # Exit code 1 means "not an ancestor". Any other non-zero code is a git error and must
+          # fail the job, so that a broken check can never look like "this tag is not a release".
+          case "$rc" in
+            0) is_default_branch=true ;;
+            1) is_default_branch=false ;;
+            *) echo "::error::git merge-base failed with exit code $rc"; exit "$rc" ;;
+          esac
           echo "default_branch=${DEFAULT_BRANCH}"
           echo "is_default_branch=$is_default_branch" | tee -a $GITHUB_OUTPUT
 

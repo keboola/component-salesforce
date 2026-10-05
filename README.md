@@ -58,8 +58,15 @@ API version
 
 Salesforce retires old API versions. Versions 21.0 to 30.0 are retired, and versions 31.0 to 40.0
 become unsupported in the Summer '27 release. A configuration that holds a retired version fails.
-The component replaces a stored version below 31.0 with the current default and writes a warning to
-the job log. A configuration with no API version set also uses the current default.
+
+The component also has its own minimum. A normal run uses the Salesforce Bulk API 2.0, which exists
+from API version 41.0. Only a run with **Serial mode** switched on uses the Bulk API 1.0, which also
+works on versions 31.0 to 40.0.
+
+When the configured API version is below the minimum of the write path that the run uses, the
+component uses the current default (64.0) instead and writes a warning to the job log. A
+configuration with no API version set also uses the current default. A configuration with a version
+that the write path can use keeps that version.
 
 Prerequisites
 =============
@@ -90,7 +97,7 @@ Authorization configuration
 ---------------------------
 
 - Login method (login_method) - [REQ] `security_token` (deprecated) or `connected_app_oauth_cc` (recommended). See [Login methods](#login-methods).
-- API version (api_version) - [OPT] The Salesforce API version. A stored version below 31.0 is replaced with the current default.
+- API version (api_version) - [OPT] The Salesforce API version. A version the write path cannot use is replaced with the current default. See [API version](#api-version).
 - User Name (#username) - [REQ for `security_token`] Your username. When exporting data from a sandbox, don't forget to add `.sandboxname` at the end
 - Password (#password) - [REQ for `security_token`] Your password
 - Security Token (#security_token) - [REQ for `security_token`] Your security token. ***Note:** The security token is different for sandbox environments*

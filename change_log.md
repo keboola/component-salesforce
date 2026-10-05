@@ -4,7 +4,9 @@
   API login() call in the Summer '27 release. The component now writes a warning and the documentation
   describes the migration to the connected app client credentials flow.
 - raise the API version fallback from 40.0 to 64.0 for configurations with no api_version set
-- replace a stored API version below 31.0 (retired by Salesforce) with the fallback, and log the replacement
+- replace a stored API version that the write path cannot use with the fallback, and log the
+  replacement: below 41.0 for a normal run (Bulk API 2.0 starts at 41.0) and below 31.0 for a run in
+  serial mode (Bulk API 1.0). A version the write path can use is kept unchanged.
 - fix the release pipeline: a semantic tag on the default branch was not deployed when another branch
   also contained the tagged commit
 
