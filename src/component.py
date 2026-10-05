@@ -60,7 +60,19 @@ LOG_LIMIT = 15
 MAX_INGEST_JOB_FILE_SIZE = 100 * 1024 * 1024
 MAX_SERIAL_BATCH_SIZE = 2500
 
-DEFAULT_API_VERSION = "40.0"
+SECURITY_TOKEN_DEPRECATION_WARNING = (
+    "The login method \"Security token with username and password\" uses the Salesforce SOAP API login() call. "
+    "Salesforce retires login() in the Summer '27 release, and it is switched off by default in orgs created in "
+    "Winter '26 or later. Change the login method to \"Connected app OAuth 2.0 client credentials\" to keep this "
+    "configuration working. See the component documentation for the migration steps.")
+
+DEFAULT_API_VERSION = "64.0"
+# Salesforce retired API versions 21.0-30.0 (Summer '25). A configuration saved before those versions
+# were removed from the schema can still hold a retired value, and Bulk API 1.0 then rejects every call.
+MIN_BULK1_API_VERSION = 31.0
+# Bulk API 2.0 (/services/data/v{version}/jobs/ingest) exists from API version 41.0. The component uses
+# Bulk API 2.0 for every run that does not have serial mode switched on.
+MIN_BULK2_API_VERSION = 41.0
 
 
 class LoginType(str, Enum):
@@ -71,6 +83,41 @@ class LoginType(str, Enum):
     @classmethod
     def list(cls):
         return list(map(lambda c: c.value, cls))
+
+
+def resolve_api_version(raw_version, serial_mode: bool = False) -> str:
+    """Return the Salesforce API version to use.
+
+    A stored API version that the selected write path cannot use is replaced with
+    DEFAULT_API_VERSION, and the replacement is logged. The minimum differs per path:
+
+    - serial mode uses Bulk API 1.0, so the minimum is the oldest version Salesforce still
+      serves (MIN_BULK1_API_VERSION);
+    - every other run uses Bulk API 2.0, which exists from MIN_BULK2_API_VERSION.
+
+    A version that the selected path can use is kept unchanged, so a working configuration keeps
+    its behaviour. A value that is not a number is also kept, so that Salesforce reports it.
+    """
+    if raw_version is None or str(raw_version).strip() == "":
+        return DEFAULT_API_VERSION
+
+    raw_version = str(raw_version).strip()
+    try:
+        numeric_version = float(raw_version)
+    except ValueError:
+        return raw_version
+
+    minimum_version = MIN_BULK1_API_VERSION if serial_mode else MIN_BULK2_API_VERSION
+    if numeric_version < minimum_version:
+        used_api = "Bulk API 1.0" if serial_mode else "Bulk API 2.0"
+        logging.warning(
+            f"This configuration uses the Salesforce {used_api}, which needs API version "
+            f"{minimum_version} or higher, but the configured API version is {raw_version}. "
+            f"Version {DEFAULT_API_VERSION} is used instead. "
+            f"Set a supported API version in the configuration to remove this warning.")
+        return DEFAULT_API_VERSION
+
+    return raw_version
 
 
 def estimate_chunk_size(csv_path: str) -> int:
@@ -125,28 +172,32 @@ class Component(ComponentBase):
         super().__init__()
         self.print_failed_to_log = False
         params = self.configuration.parameters
+        # `or {}` also covers advanced_options set to null in a saved configuration.
+        self.serial_mode = bool((params.get(KEY_ADVANCED_OPTIONS) or {}).get(KEY_SERIAL_MODE, False))
+        api_version = resolve_api_version(params.get(KEY_API_VERSION), self.serial_mode)
         login_method = self._get_login_method()
         if login_method == LoginType.CONNECTED_APP_OAUTH_AUTH_CODE:
             # oauth login
             self.client = SalesforceClient(consumer_key=self.configuration.oauth_credentials.appKey,
                                            consumer_secret=self.configuration.oauth_credentials.appSecret,
                                            refresh_token=self.configuration.oauth_credentials.data['refresh_token'],
-                                           api_version=params.get(KEY_API_VERSION, DEFAULT_API_VERSION),
+                                           api_version=api_version,
                                            is_sandbox=params.get(KEY_SANDBOX))
         elif login_method == LoginType.SECURITY_TOKEN_LOGIN:
-
+            if not self.configuration.action or self.configuration.action == 'run':
+                logging.warning(SECURITY_TOKEN_DEPRECATION_WARNING)
             self.validate_configuration_parameters([KEY_USERNAME, KEY_PASSWORD, KEY_SECURITY_TOKEN])
             self.client = SalesforceClient(legacy_credentials=dict(username=params.get(KEY_USERNAME),
                                                                    password=params.get(KEY_PASSWORD),
                                                                    security_token=params.get(KEY_SECURITY_TOKEN)),
-                                           api_version=params.get(KEY_API_VERSION, DEFAULT_API_VERSION),
+                                           api_version=api_version,
                                            is_sandbox=params.get(KEY_SANDBOX))
 
         elif login_method == LoginType.CONNECTED_APP_OAUTH_CC:
             self.validate_configuration_parameters([KEY_CONSUMER_KEY, KEY_CONSUMER_SECRET, KEY_DOMAIN])
             self.client = SalesforceClient(consumer_key=params[KEY_CONSUMER_KEY],
                                            consumer_secret=params[KEY_CONSUMER_SECRET],
-                                           api_version=params.get(KEY_API_VERSION, DEFAULT_API_VERSION),
+                                           api_version=api_version,
                                            is_sandbox=params.get(KEY_SANDBOX),
                                            domain=params[KEY_DOMAIN])
 
@@ -176,7 +227,8 @@ class Component(ComponentBase):
 
         logging.info(f"Running {operation} operation with input table to the {sf_object} Salesforce object")
 
-        serial_mode = params.get(KEY_ADVANCED_OPTIONS, {}).get(KEY_SERIAL_MODE, False)
+        # Resolved in __init__, because the API version floor depends on it.
+        serial_mode = self.serial_mode
 
         replace_string = params.get(KEY_REPLACE_STRING)
         input_headers = input_table.columns

@@ -37,30 +37,39 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Fetch all branches from remote repository
-        run: git fetch --prune --unshallow --tags -f
-
-      - name: Get current branch name
-        id: current_branch
+      - name: Fetch full history and the default branch
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
         run: |
-          if [[ ${{ github.ref }} != "refs/tags/"* ]]; then
-            branch_name=${{ github.ref_name }}
-            echo "branch_name=$branch_name" | tee -a $GITHUB_OUTPUT
-          else
-            raw=$(git branch -r --contains ${{ github.ref }})
-            branch="$(echo ${raw//origin\//} | tr -d '\n')"
-            echo "branch_name=$branch" | tee -a $GITHUB_OUTPUT
-          fi
+          set -euo pipefail
+          # --unshallow fails on an already complete clone, so fall back to a plain fetch.
+          git fetch --prune --tags -f --unshallow || git fetch --prune --tags -f
+          git fetch --no-tags --force origin \
+            "+refs/heads/${DEFAULT_BRANCH}:refs/remotes/origin/${DEFAULT_BRANCH}"
 
-      - name: Is current branch the default branch
+      - name: Is the pushed ref on the default branch
         id: default_branch
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
         run: |
-          echo "default_branch='${{ github.event.repository.default_branch }}'"
-          if [ "${{ github.event.repository.default_branch }}" = "${{ steps.current_branch.outputs.branch_name }}" ]; then
-             echo "is_default_branch=true" | tee -a $GITHUB_OUTPUT
-          else
-             echo "is_default_branch=false" | tee -a $GITHUB_OUTPUT
-          fi
+          set -euo pipefail
+          # A tag is on the default branch when the default branch contains the tagged commit.
+          # Do not derive the branch name from `git branch --contains`: that command lists EVERY
+          # branch that contains the commit, so one open feature branch made the name not match
+          # the default branch and the deploy was skipped without any failure (tag 1.0.4).
+          set +e
+          git merge-base --is-ancestor "$GITHUB_SHA" "refs/remotes/origin/${DEFAULT_BRANCH}"
+          rc=$?
+          set -e
+          # Exit code 1 means "not an ancestor". Any other non-zero code is a git error and must
+          # fail the job, so that a broken check can never look like "this tag is not a release".
+          case "$rc" in
+            0) is_default_branch=true ;;
+            1) is_default_branch=false ;;
+            *) echo "::error::git merge-base failed with exit code $rc"; exit "$rc" ;;
+          esac
+          echo "default_branch=${DEFAULT_BRANCH}"
+          echo "is_default_branch=$is_default_branch" | tee -a $GITHUB_OUTPUT
 
       - name: Set image tag
         id: tag
